@@ -983,10 +983,14 @@ git commit -m "feat: add @citadelmd/mcp-server skeleton with health endpoint"
 
 **Step 2: Write `apps/web/tsconfig.json`**
 
+> Note: The web package is a Vite browser bundle, not a Node.js package. It overrides `module` and `moduleResolution` from the base config to use `ESNext` + `Bundler` (the Vite-recommended settings) instead of `NodeNext`. This is the same configuration that `npm create vite` generates.
+
 ```json
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "noEmit": true

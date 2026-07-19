@@ -1,7 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 RUN npm install -g pnpm
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile

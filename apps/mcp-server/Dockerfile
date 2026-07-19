@@ -2,12 +2,13 @@ FROM node:20-alpine AS build
 WORKDIR /app
 RUN apk add --no-cache git
 RUN npm install -g pnpm
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/mcp-server ./apps/mcp-server
 COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @citadelmd/shared build
 RUN pnpm --filter @citadelmd/mcp-server build
-RUN pnpm --filter @citadelmd/mcp-server --prod deploy /tmp/pruned
+RUN pnpm --filter @citadelmd/mcp-server --legacy --prod deploy /tmp/pruned
 
 FROM node:20-alpine
 RUN apk add --no-cache git
