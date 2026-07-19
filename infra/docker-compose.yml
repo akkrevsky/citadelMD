@@ -1,0 +1,175 @@
+version: "3.9"
+name: citadelmd
+networks:
+  internal:
+volumes:
+  pg_data:
+  minio_data:
+  redis_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mdcollab}
+      POSTGRES_USER: ${POSTGRES_USER:-mdcollab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mdcollab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [internal]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-mdcollab}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?required}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9001:9001"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: [/init.sh]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-mdcollab}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-md-collab-uploads}
+    volumes:
+      - ./minio/init.sh:/init.sh:ro
+    networks: [internal]
+    restart: "no"
+
+  backend:
+    build:
+      context: ../
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mdcollab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mdcollab}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-mdcollab}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-md-collab-uploads}
+      JWT_SECRET: ${JWT_SECRET:?required}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?required}
+      GIT_REPO_PATH: /data/docs
+      YJS_SERVER_URL: http://yjs-server:1234
+      MCP_SERVER_URL: http://mcp-server:3100
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost}
+    volumes:
+      - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  yjs-server:
+    build:
+      context: ../
+      dockerfile: apps/yjs-server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?required}
+      GIT_REPO_PATH: /data/docs
+      PORT: "1234"
+    volumes:
+      - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1234/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  mcp-server:
+    build:
+      context: ../
+      dockerfile: apps/mcp-server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mdcollab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mdcollab}
+      REDIS_URL: redis://redis:6379
+      GIT_REPO_PATH: /data/docs
+      YJS_SERVER_URL: http://yjs-server:1234
+      JWT_SECRET: ${JWT_SECRET:?required}
+      PORT: "3100"
+    volumes:
+      - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  web:
+    build:
+      context: ../
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    networks: [internal]
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on: [backend, yjs-server, mcp-server, web]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks: [internal]
