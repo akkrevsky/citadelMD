@@ -1,71 +1,89 @@
-# MD-Collab — Self-hosted collaborative Markdown editor
+# citadelMD
 
-> Статус: **ТЗ готово (v3 — web-only + commit/discard/restore + MCP)** · 2026-07-19
+Self-hosted collaborative Markdown editor with real-time CRDT, Git-based versioning, manual commit/discard/restore, and MCP server for AI agents.
 
-## Что это
+Status: **Specification v3 ready** (2026-07-19). Implementation not started.
 
-Самописная веб-система для совместного редактирования Markdown-документов с real-time CRDT-коллаборацией, **версионностью через Git** (diff'ы, восстановление, **ручной commit**) и **MCP-сервером для AI-агентов**. Разворачивается на собственном VPS командой из ~10 человек. Реализуется кодовыми агентами (Codex/Claude Code) по этому ТЗ.
+## What this is
 
-## Ключевые характеристики
+A web-based collaborative Markdown editor for a ~10-person team, deployed on a self-managed VPS. Built by code agents (Claude Code on GLM-5.2) following the specification suite under `docs/`.
 
-- 📝 **Pure Markdown** — файлы валидны как `.md`, портируемы
-- 🌳 **Git как движок хранения** — каждый `.md` файл в Git-репозитории
-- 🔄 **Real-time co-editing** через Yjs CRDT (cursor-level, посимвольный мердж)
-- 💾 **Auto-save** — правки пишутся в файл каждые 5 сек (не теряются при сбое)
-- 📜 **Ручной commit** — пользователь сам решает, когда создать версию (не каждый чих)
-- ↩️ **Discard** — откат незакоммиченных правок к последнему коммиту
-- 🔄 **Restore** — восстановление любой старой версии
-- 🔍 **Diff как в git** — добавлено/удалено, между любыми версиями
-- 🤖 **MCP-сервер** — AI-агенты (Codex/Claude) могут читать, искать, создавать и обновлять документы
-- 🔐 **Роли:** ADMIN / EDITOR / VIEWER
-- 🔗 **Публичные share-ссылки** с TTL и правами read/write
-- 🧩 **8 расширений markdown:** Mermaid, KaTeX, code highlight, embeds, tables, callouts, task-lists, footnotes
-- 📎 **Attachments:** drag-n-drop, paste-image, MinIO/S3 (200 ГБ)
-- 🐳 **Docker Compose** — 6 сервисов, разворачивается одной командой
+Key characteristics:
 
-## Зафиксированный стек
+- Pure Markdown files stored in a Git working repo on the server filesystem
+- Real-time co-editing via Yjs CRDT (cursor-level, character-by-character merge)
+- Auto-save every 5 seconds to the working tree (edits survive crashes)
+- Manual commit — the user decides when to create a versioned snapshot, not every keystroke
+- Discard — revert uncommitted edits back to the last commit
+- Restore — bring back any historical version
+- Git-style diffs between any two versions (added/removed lines)
+- MCP server so AI agents (Codex, Claude, others) can read, search, create, and update documents
+- Roles: ADMIN / EDITOR / VIEWER
+- Public share links with TTL and read/write permissions
+- 8 Markdown extensions: Mermaid, KaTeX, code highlight, embeds, tables, callouts, task-lists, footnotes
+- Attachments via drag-n-drop and paste-image, stored in MinIO/S3 (200 GB)
+- Docker Compose deployment, 6 services, one-command bring-up
 
-| Компонент | Решение |
+## Tech stack
+
+| Component | Choice |
 |---|---|
 | Frontend | React + Vite + CodeMirror 6 + y-codemirror.next + markdown-it |
 | Backend | Node.js 20 + TypeScript + Fastify + Prisma |
 | Real-time | Yjs + y-redis (WebSocket gateway, ephemeral) |
 | MCP Server | Node.js + TypeScript + HTTP+SSE transport |
-| Storage (контент) | **Git working repo на FS** (`/var/lib/md-collab/docs/`) |
-| Storage (метаданные) | PostgreSQL 16 |
-| Storage (attachments) | MinIO (S3) |
+| Content storage | Git working repo on FS (`/var/lib/md-collab/docs/`) |
+| Metadata storage | PostgreSQL 16 |
+| Attachments | MinIO (S3) |
 | Cache / locks / pub-sub | Redis 7 |
 | Reverse proxy | Nginx (TLS, WebSocket) |
-| Auth | JWT в httpOnly cookie + API key для MCP |
-| Пакетный менеджер | pnpm (workspace monorepo) |
+| Auth | JWT in httpOnly cookie + API key for MCP |
+| Package manager | pnpm (workspace monorepo) |
 
-## Документы
+## Specification
 
-| Файл | Содержание |
+The full specification lives under `docs/` and is the source of truth for implementation:
+
+| File | Contents |
 |---|---|
-| [`01-requirements.md`](./01-requirements.md) | ✅ Требования (функциональные + нефункциональные) |
-| [`02-tech-stack-options.md`](./02-tech-stack-options.md) | ✅ Сравнение стека + зафиксированные решения |
-| [`03-architecture.md`](./03-architecture.md) | ✅ Компоненты, потоки данных, модель сохранения (auto-save + ручной commit) |
-| [`04-database-schema.md`](./04-database-schema.md) | ✅ Postgres/Prisma (метаданные только, без content_md) |
-| [`05-api-contracts.md`](./05-api-contracts.md) | ✅ REST + WS протокол + commit/discard/restore + **MCP tools** |
-| [`06-infra-deploy.md`](./06-infra-deploy.md) | ✅ Docker Compose, Nginx, Git auto-init, backup scripts |
-| [`07-agent-roadmap.md`](./07-agent-roadmap.md) | ✅ 7 фаз для кодовых агентов (Phase 0–6) |
+| [docs/01-requirements.md](docs/01-requirements.md) | Functional and non-functional requirements |
+| [docs/02-tech-stack-options.md](docs/02-tech-stack-options.md) | Stack comparison and locked decisions |
+| [docs/03-architecture.md](docs/03-architecture.md) | Components, data flows, save model (auto-save + manual commit) |
+| [docs/04-database-schema.md](docs/04-database-schema.md) | Postgres/Prisma schema (metadata only, no content_md) |
+| [docs/05-api-contracts.md](docs/05-api-contracts.md) | REST + WS protocol + commit/discard/restore + MCP tools |
+| [docs/06-infra-deploy.md](docs/06-infra-deploy.md) | Docker Compose, Nginx, Git auto-init, backup scripts |
+| [docs/07-agent-roadmap.md](docs/07-agent-roadmap.md) | 7 phases for code agents (Phase 0-6) |
 
-## Архитектурные решения (v3 от 2026-07-19)
+Detailed bite-sized implementation plans (produced by the `writing-plans` workflow) live under `docs/plans/`.
 
-1. **Source of truth = Git HEAD.** Working tree = «черновик» с незакоммиченными правками.
-2. **Yjs ephemeral** — инициализируется из working tree при открытии, debounced auto-save каждые 5 сек.
-3. **Ручной commit** — кнопка «Сохранить версию», git commit с GIT_AUTHOR_* от пользователя.
-4. **Discard** — `git checkout HEAD -- <file>`, откат незакоммиченных правок.
-5. **Restore** — `git checkout <sha> -- <file>` + новый commit, восстановление старой версии.
-6. **MCP server** — отдельный сервис (порт 3100), Bearer API key auth, tools для AI-агентов.
-7. **Web-only** — без Obsidian, SSH, локальных файлов, file watcher, reconciliation. Только редактирование в браузере.
+## Architecture decisions (v3, 2026-07-19)
 
-## Следующий шаг
+1. Source of truth = Git HEAD. The working tree is a scratchpad with uncommitted auto-saved edits.
+2. Yjs is ephemeral — initialized from the working tree on open, debounced auto-save every 5s.
+3. Manual commit — a "Save version" button triggers `git add + git commit` with GIT_AUTHOR_* from the user.
+4. Discard — `git checkout HEAD -- <file>` reverts uncommitted edits.
+5. Restore — `git checkout <sha> -- <file>` plus a new commit brings back an old version.
+6. MCP server — separate service on port 3100, Bearer API key auth, tools for AI agents.
+7. Web-only — no Obsidian, no SSH, no local files, no file watcher, no external-source reconciliation. Editing happens in the browser only.
 
-Roadmap (`07-agent-roadmap.md`) предлагает два варианта запуска разработки:
+## Development
 
-1. **Напрямую через Codex/Claude Code** — по фазам. Быстрее.
-2. **Через `subagent-driven-development`** — с детальными планами (`writing-plans`) и двухуровневым review. Качественнее.
+This project is built by code agents following the superpowers methodology:
+`spec-authoring` -> `writing-plans` -> `subagent-driven-development` -> `requesting-code-review`.
 
-Рекомендация: начать с детального плана для **Phase 0** (scaffolding) и исполнить через `subagent-driven-development`. См. `07-agent-roadmap.md` → раздел «Как запускать фазы».
+Active agent: Claude Code v2.x backed by ZAI GLM-5.2 via the Anthropic-compatible endpoint.
+
+To run Phase 0 (scaffolding) locally:
+
+```bash
+cd /home/sp/workspace/citadelMD
+PATH="$HOME/.npm-global/bin:$HOME/.local/bin:$PATH" \
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
+claude -p "Implement the plan in docs/plans/2026-07-20-phase-0-scaffolding.md" \
+  --settings ~/.claude/profiles/glm.json \
+  --max-turns 50
+```
+
+## License
+
+TBD.
