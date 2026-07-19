@@ -1,0 +1,24 @@
+{
+  "name": "@citadelmd/yjs-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "echo 'no tests yet'"
+  },
+  "dependencies": {
+    "@citadelmd/shared": "workspace:*",
+    "fastify": "^4.28.0",
+    "yjs": "^13.6.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.16.0",
+    "@types/ws": "^8.5.10"
+  }
+}
