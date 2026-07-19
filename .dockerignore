@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+**/coverage
+.git
+.env
+*.log
+docs/
+README.md
+CLAUDE.md
