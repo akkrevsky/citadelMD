@@ -118,4 +118,39 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
       },
     }
   })
+
+  // GET /api/uploads/:id — file download
+  app.get<{ Params: { id: string } }>('/api/uploads/:id', { preHandler: [verifyAuth] }, async (request, reply) => {
+    const upload = await prisma.upload.findUnique({
+      where: { id: request.params.id },
+    })
+    if (!upload) {
+      reply.code(404)
+      return { error: { code: 'UPLOAD_NOT_FOUND', message: 'Upload not found' } }
+    }
+
+    const minio = getMinioClient()
+    const stream = await minio.getObject(MINIO_BUCKET, upload.objectKey)
+
+    reply.header('Content-Type', upload.mimeType)
+    reply.header('Content-Disposition', `inline; filename="${upload.fileName}"`)
+    reply.header('Content-Length', String(upload.sizeBytes))
+    return reply.send(stream)
+  })
+
+  // GET /api/users/me/quota — current user quota
+  app.get('/api/users/me/quota', { preHandler: [verifyAuth] }, async (request) => {
+    const userId = request.user!.sub
+    let quota = await prisma.userQuota.findUnique({ where: { userId } })
+    if (!quota) {
+      quota = await prisma.userQuota.create({
+        data: { userId, maxStorageBytes: 5 * 1024 * 1024 * 1024, usedStorageBytes: 0 },
+      })
+    }
+    return {
+      maxBytes: quota.maxStorageBytes,
+      usedBytes: quota.usedStorageBytes,
+      availableBytes: Number(quota.maxStorageBytes) - Number(quota.usedStorageBytes),
+    }
+  })
 }
