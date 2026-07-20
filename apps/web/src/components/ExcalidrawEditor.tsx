@@ -1,71 +1,66 @@
-import { useState, useCallback, useRef } from 'react'
-import { Excalidraw, MainMenu, WelcomeScreen } from '@excalidraw/excalidraw'
-import type {
-  ExcalidrawImperativeAPI,
-  ExcalidrawInitialDataState,
-} from '@excalidraw/excalidraw/types'
+import { useState, useCallback } from 'react'
 
 interface ExcalidrawEditorProps {
-  initialData?: ExcalidrawInitialDataState
   onSave: (svgDataUrl: string) => void
   onClose: () => void
 }
 
-export function ExcalidrawEditor({ initialData, onSave, onClose }: ExcalidrawEditorProps) {
-  const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null)
+function ExcalidrawEditor({ onSave, onClose }: ExcalidrawEditorProps) {
+  const [Excalidraw, setExcalidraw] = useState<any>(null)
+  const [elRef, setElRef] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  useState(() => {
+    import('@excalidraw/excalidraw').then((mod) => {
+      setExcalidraw(() => mod.Excalidraw)
+      setLoading(false)
+    }).catch((err: Error) => {
+      setLoadError('Failed to load Excalidraw: ' + err.message)
+      setLoading(false)
+    })
+  })
 
   const handleExport = useCallback(async () => {
-    if (!excalidrawRef.current) return
+    if (!elRef) return
     setIsSaving(true)
-
     try {
-      const elements = excalidrawRef.current.getSceneElements()
-      const appState = excalidrawRef.current.getAppState()
-      const files = excalidrawRef.current.getFiles()
-
-      // Use export helper
+      const elements = elRef.getSceneElements()
+      const appState = elRef.getAppState()
+      const files = elRef.getFiles()
       const { exportToSvg } = await import('@excalidraw/excalidraw')
-      const svg = await exportToSvg({
-        elements,
-        appState,
-        files,
-        exportBackground: true,
-        exportWithDarkMode: false,
-      })
-
+      const svg = await exportToSvg({ elements, appState, files, exportBackground: true, exportWithDarkMode: false })
       const serializer = new XMLSerializer()
       const svgString = serializer.serializeToString(svg)
       const svgBase64 = btoa(unescape(encodeURIComponent(svgString)))
-      const dataUrl = `data:image/svg+xml;base64,${svgBase64}`
-
-      onSave(dataUrl)
+      onSave(`data:image/svg+xml;base64,${svgBase64}`)
     } catch (error) {
       console.error('Excalidraw export failed:', error)
     } finally {
       setIsSaving(false)
     }
-  }, [onSave])
+  }, [elRef, onSave])
+
+  if (loading) return <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Loading diagram editor...</div>
+  if (loadError) return <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>{loadError}</div>
+  if (!Excalidraw) return null
 
   return (
-    <div className="excalidraw-editor-wrapper" style={{ height: '500px' }}>
-      <Excalidraw
-        excalidrawAPI={(api) => { excalidrawRef.current = api }}
-        initialData={initialData}
-      >
-        <WelcomeScreen />
-        <MainMenu>
-          <MainMenu.DefaultItems.LoadScene />
-          <MainMenu.DefaultItems.Export />
-          <MainMenu.DefaultItems.ClearCanvas />
-        </MainMenu>
-      </Excalidraw>
-      <div className="excalidraw-actions">
-        <button onClick={handleExport} disabled={isSaving}>
+    <div style={{ height: '500px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+      <Excalidraw excalidrawAPI={(api: any) => setElRef(api)} />
+      <div style={{ display: 'flex', gap: '8px', padding: '8px 12px', borderTop: '1px solid #e2e8f0', background: '#fafafa' }}>
+        <button onClick={handleExport} disabled={isSaving}
+          style={{ padding: '6px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
           {isSaving ? 'Saving...' : 'Insert into document'}
         </button>
-        <button onClick={onClose}>Cancel</button>
+        <button onClick={onClose}
+          style={{ padding: '6px 16px', background: '#f1f5f9', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}>
+          Cancel
+        </button>
       </div>
     </div>
   )
 }
+
+export default ExcalidrawEditor
