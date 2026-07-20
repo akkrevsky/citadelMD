@@ -77,7 +77,7 @@ async function resolveGitPath(parentId: string | null, name: string): Promise<st
 export async function getEffectivePermission(
   userId: string,
   folderId: string,
-): Promise<FolderPermissionLevel> {
+): Promise<FolderPermissionLevel | null> {
   // Gather all folder IDs from this node up to root
   const folderIds = await collectFolderAncestors(folderId)
 
@@ -90,11 +90,14 @@ export async function getEffectivePermission(
     select: { permission: true },
   })
 
-  if (permissions.length === 0) return 'VIEW' // default read
+  // No explicit permission in the ancestry => no access (admins bypass at the
+  // call site). Returning null instead of an implicit VIEW closes the hole
+  // where every user could read every folder.
+  if (permissions.length === 0) return null
 
   return permissions
     .map((p: { permission: string }) => p.permission as FolderPermissionLevel)
-    .reduce((acc: FolderPermissionLevel, p: FolderPermissionLevel) => maxPermission(acc, p), 'VIEW' as FolderPermissionLevel)
+    .reduce((acc: FolderPermissionLevel, p: FolderPermissionLevel) => maxPermission(acc, p))
 }
 
 async function collectFolderAncestors(folderId: string): Promise<string[]> {
@@ -122,7 +125,7 @@ export function computeEffectivePermissionFromAncestors(
   folderId: string,
   folderMap: Map<string, { id: string; parentId: string | null; name: string }>,
   permissionMap: Map<string, FolderPermissionLevel>,
-): FolderPermissionLevel {
+): FolderPermissionLevel | null {
   const currentPath: string[] = []
   let currentId: string | null = folderId
   while (currentId) {
@@ -132,11 +135,11 @@ export function computeEffectivePermissionFromAncestors(
     currentId = f.parentId
   }
 
-  let effective: FolderPermissionLevel = 'VIEW'
+  let effective: FolderPermissionLevel | null = null
   for (const fid of currentPath) {
     const p = permissionMap.get(fid)
     if (p) {
-      effective = maxPermission(effective, p)
+      effective = effective === null ? p : maxPermission(effective, p)
     }
   }
   return effective
@@ -450,7 +453,7 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
   }
 
   // Build effective permission for each folder
-  const effectivePermissions = new Map<string, FolderPermissionLevel>()
+  const effectivePermissions = new Map<string, FolderPermissionLevel | null>()
   for (const f of allFolders) {
     effectivePermissions.set(
       f.id,
@@ -458,10 +461,11 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
     )
   }
 
-  // Only include folders where user has view+ access
+  // Only include folders where the user has an explicit permission in the
+  // ancestry (null means no access). Admins use buildFullTree instead.
   const accessibleFolderIds = new Set(
     [...effectivePermissions.entries()]
-      .filter(([, perm]) => PERMISSION_ORDER[perm] >= PERMISSION_ORDER.VIEW)
+      .filter(([, perm]) => perm !== null)
       .map(([id]) => id),
   )
 

@@ -3,6 +3,7 @@ import multipart from '@fastify/multipart'
 import { prisma } from '../prisma.js'
 import { getMinioClient } from '../services/minio.service.js'
 import { verifyAuth } from '../middleware/auth.js'
+import { assertFolderPermission } from '../services/authz.js'
 import { randomUUID } from 'crypto'
 import { extname } from 'path'
 
@@ -52,6 +53,8 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
       reply.code(404)
       return { error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' } }
     }
+
+    await assertFolderPermission(userId, request.user!.role, document.folderId, 'EDIT')
 
     const buffer = await data.toBuffer()
     const sizeBytes = buffer.length
@@ -125,11 +128,19 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/api/uploads/:id', { preHandler: [verifyAuth] }, async (request, reply) => {
     const upload = await prisma.upload.findUnique({
       where: { id: request.params.id },
+      include: { document: { select: { folderId: true } } },
     })
     if (!upload) {
       reply.code(404)
       return { error: { code: 'UPLOAD_NOT_FOUND', message: 'Upload not found' } }
     }
+
+    await assertFolderPermission(
+      request.user!.sub,
+      request.user!.role,
+      upload.document?.folderId ?? null,
+      'VIEW',
+    )
 
     const minio = getMinioClient()
     const stream = await minio.getObject(MINIO_BUCKET, upload.objectKey)

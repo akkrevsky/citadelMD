@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { randomBytes } from 'node:crypto'
 import { prisma } from '../prisma.js'
 import { verifyAuth } from '../middleware/auth.js'
+import { assertFolderPermission, getDocumentFolderId } from '../services/authz.js'
 
 const DEFAULT_TTL_HOURS = 24
 const MAX_TTL_HOURS = 720 // 30 days
@@ -27,6 +28,9 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
       reply.code(404)
       return { error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' } }
     }
+
+    // Only users with ADMIN on the document's folder may mint share links
+    await assertFolderPermission(userId, request.user!.role, document.folderId, 'ADMIN')
 
     const expiresAt = new Date(Date.now() + ttl * 60 * 60 * 1000)
     const token = randomBytes(24).toString('base64url')
@@ -55,6 +59,8 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
   // List shares for document
   app.get('/api/documents/:documentId/shares', { preHandler: [verifyAuth] }, async (request) => {
     const { documentId } = request.params as any
+    const folderId = await getDocumentFolderId(documentId)
+    await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'VIEW')
     const shares = await prisma.share.findMany({
       where: { documentId },
       orderBy: { createdAt: 'desc' },
@@ -99,12 +105,22 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
   // Revoke share
   app.delete('/api/shares/:token', { preHandler: [verifyAuth] }, async (request, reply) => {
     const { token } = request.params as any
-    const share = await prisma.share.findUnique({ where: { token } })
+    const share = await prisma.share.findUnique({
+      where: { token },
+      include: { document: { select: { folderId: true } } },
+    })
 
     if (!share) {
       reply.code(404)
       return { error: { code: 'SHARE_NOT_FOUND', message: 'Share not found' } }
     }
+
+    await assertFolderPermission(
+      request.user!.sub,
+      request.user!.role,
+      share.document?.folderId ?? null,
+      'ADMIN',
+    )
 
     await prisma.share.delete({ where: { token } })
     reply.code(204)
