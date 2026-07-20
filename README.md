@@ -215,4 +215,4 @@ Core editing, real-time collaboration, Git versioning, markdown rendering, attac
 
 ## License
 
-TBD.
+BSD-3-Clause. See [LICENSE](LICENSE).
