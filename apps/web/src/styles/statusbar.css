@@ -1,0 +1,77 @@
+/* Status Bar Styles - uses CSS custom properties */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 24px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.status-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.status-bar-item:hover {
+  color: var(--color-text);
+}
+
+.status-bar-item .label {
+  color: var(--color-text-dim);
+}
+
+.status-bar-item .value {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar-connection {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.connected {
+  background: var(--color-success);
+}
+
+.status-dot.disconnected {
+  background: var(--color-danger);
+}
+
+.status-dot.connecting {
+  background: var(--color-warning);
+}
+
+.status-bar-filename {
+  font-weight: 600;
+  color: var(--color-text);
+}

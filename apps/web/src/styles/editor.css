@@ -1,0 +1,113 @@
+/* CodeMirror Editor Styles */
+/* Uses CSS custom properties from data-theme */
+
+.editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+.editor-wrapper .cm-editor {
+  height: 100%;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.editor-wrapper .cm-editor .cm-scroller {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+.editor-wrapper .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* Line numbers styling - use CSS vars so theme switching works */
+.editor-wrapper .cm-editor .cm-gutters {
+  background: var(--color-bg);
+  border-right: 1px solid var(--color-border);
+  color: var(--color-editor-gutter);
+  min-width: 40px;
+  user-select: none;
+}
+
+.editor-wrapper .cm-editor .cm-lineNumbers .cm-gutterElement {
+  padding: 0 8px 0 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-editor-gutter);
+}
+
+.editor-wrapper .cm-editor .cm-activeLineGutter {
+  background: var(--color-editor-active-line);
+  color: var(--color-text);
+}
+
+.editor-wrapper .cm-editor .cm-activeLine {
+  background: var(--color-editor-active-line);
+}
+
+.editor-wrapper .cm-editor .cm-cursor {
+  border-left-color: var(--color-text);
+  border-left-width: 2px;
+}
+
+.editor-wrapper .cm-editor .cm-selectionBackground,
+.editor-wrapper .cm-editor.cm-focused .cm-selectionBackground {
+  background: var(--color-selection) !important;
+}
+
+.editor-wrapper .cm-editor .cm-matchingBracket {
+  background: var(--color-surface-alt);
+  outline: 1px solid var(--color-primary);
+}
+
+.editor-wrapper .cm-editor .cm-foldPlaceholder {
+  background: var(--color-btn-default);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+/* Search dialog */
+.editor-wrapper .cm-editor .cm-panel {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 6px 10px;
+}
+
+.editor-wrapper .cm-editor .cm-panel input {
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.editor-wrapper .cm-editor .cm-panel input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.editor-wrapper .cm-editor .cm-panel label {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin: 0 6px;
+}
+
+.editor-wrapper .cm-editor .cm-panel button {
+  background: var(--color-btn-default);
+  border: 1px solid var(--color-border);
+  color: var(--color-btn-default-text);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.editor-wrapper .cm-editor .cm-panel button:hover {
+  background: var(--color-btn-default-hover);
+}

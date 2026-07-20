@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { ThemeProvider } from './hooks/useTheme'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import HomePage from './pages/HomePage'
@@ -10,17 +11,19 @@ import './styles.css'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/share/:token" element={<GuestDocumentPage />} />
-        <Route path="/" element={<DashboardPage />}>
-          <Route index element={<HomePage />} />
-          <Route path="admin/users" element={<AdminUsersPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path="documents/:id/edit" element={<DocumentEditPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/share/:token" element={<GuestDocumentPage />} />
+          <Route path="/" element={<DashboardPage />}>
+            <Route index element={<HomePage />} />
+            <Route path="admin/users" element={<AdminUsersPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="documents/:id/edit" element={<DocumentEditPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
