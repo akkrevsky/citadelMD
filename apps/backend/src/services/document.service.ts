@@ -358,7 +358,9 @@ export class DocumentService {
     }
 
     const newFileName = this.sanitizeFileName(newTitle) + '.md'
-    const newFilePath = `${document.folder.gitPath}/${newFileName}`
+    const newFilePath = document.folder.gitPath
+      ? `${document.folder.gitPath}/${newFileName}`
+      : newFileName
 
     return this.withFileLock(document.filePath, async () => {
       // Git mv old -> new

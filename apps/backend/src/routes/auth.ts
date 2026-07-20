@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { login, buildLogoutCookie, getCookieOptions, validatePassword } from '../services/auth.service.js'
 import { changePassword } from '../services/user.service.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { prisma } from '../prisma.js'
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/auth/login
@@ -47,7 +48,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     '/api/auth/me',
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const { prisma } = await import('../prisma.js')
       const userId = request.user!.sub
       const user = await prisma.user.findUnique({
         where: { id: userId },
