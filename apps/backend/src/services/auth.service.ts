@@ -59,7 +59,7 @@ export function getCookieOptions() {
   return {
     path: '/',
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' && process.env.SECURE_COOKIE === 'true',
     sameSite: 'lax' as const,
     maxAge: COOKIE_MAX_AGE,
   }
