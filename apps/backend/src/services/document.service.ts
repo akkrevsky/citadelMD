@@ -1,9 +1,8 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { Redis } from 'ioredis'
-import { GitService, createFileLock, type GitAuthor, type GitRevision } from '@citadelmd/shared'
+import { GitService, type GitAuthor, type GitRevision } from '@citadelmd/shared'
 import { prisma } from '../prisma.js'
-import { RedisLockService } from './redis-lock.service.js'
+import { withFileLock } from './lock.js'
 
 // ========== Types ==========
 
@@ -36,20 +35,11 @@ export interface DocumentRevision extends GitRevision {
 
 export class DocumentService {
   private git: GitService
-  private withFileLock: ReturnType<typeof createFileLock>
-  private redisLock: RedisLockService
   private yjsServerUrl: string
 
   constructor() {
     const repoPath = this.getGitRepoPath()
     this.git = new GitService(repoPath)
-    
-    // Initialize Redis client for file locking
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
-    const redis = new Redis(redisUrl)
-    
-    this.withFileLock = createFileLock(redis)
-    this.redisLock = new RedisLockService(redisUrl)
     this.yjsServerUrl = process.env.YJS_SERVER_URL || 'http://localhost:1234'
   }
 
@@ -99,7 +89,7 @@ export class DocumentService {
     }
 
     // Create document with file lock
-    return this.withFileLock(filePath, async () => {
+    return withFileLock(filePath, async () => {
       // Write initial content
       const initialContent = `# ${title}\n\n`
       await fs.writeFile(fullPath, initialContent, 'utf8')
@@ -204,7 +194,7 @@ export class DocumentService {
       email: user.gitEmail ?? `${user.login}@mdcollab.local`
     }
 
-    await this.withFileLock(document.filePath, async () => {
+    await withFileLock(document.filePath, async () => {
       const result = await this.git.commit(message, author)
       if (!result) {
         throw new Error('No changes to commit')
@@ -225,7 +215,7 @@ export class DocumentService {
       throw Object.assign(new Error('Document not found'), { statusCode: 404 })
     }
 
-    await this.withFileLock(document.filePath, async () => {
+    await withFileLock(document.filePath, async () => {
       await this.git.discard(document.filePath)
     })
   }
@@ -309,7 +299,7 @@ export class DocumentService {
       email: user.gitEmail ?? `${user.login}@mdcollab.local`
     }
 
-    await this.withFileLock(document.filePath, async () => {
+    await withFileLock(document.filePath, async () => {
       await this.git.restore(document.filePath, sha, author)
     })
   }
@@ -362,7 +352,7 @@ export class DocumentService {
       ? `${document.folder.gitPath}/${newFileName}`
       : newFileName
 
-    return this.withFileLock(document.filePath, async () => {
+    return withFileLock(document.filePath, async () => {
       // Git mv old -> new
       await this.git.move(document.filePath, newFilePath)
 
@@ -419,7 +409,7 @@ export class DocumentService {
       email: user.gitEmail ?? `${user.login}@mdcollab.local`
     }
 
-    await this.withFileLock(document.filePath, async () => {
+    await withFileLock(document.filePath, async () => {
       // Git rm
       await this.git.remove(document.filePath)
 
@@ -467,7 +457,7 @@ export class DocumentService {
       email: user.gitEmail ?? `${user.login}@mdcollab.local`
     }
 
-    await this.redisLock.withFileLock(document.filePath, async () => {
+    await withFileLock(document.filePath, async () => {
       // Flush Yjs document if active sessions exist
       if (await this.hasActiveYjsSession(id)) {
         await this.flushYjsDocument(id)
@@ -493,7 +483,7 @@ export class DocumentService {
       throw Object.assign(new Error('Document not found'), { statusCode: 404 })
     }
 
-    await this.redisLock.withFileLock(document.filePath, async () => {
+    await withFileLock(document.filePath, async () => {
       await this.git.discard(document.filePath)
 
       // Reload Yjs document if active sessions exist

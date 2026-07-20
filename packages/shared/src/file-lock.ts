@@ -81,3 +81,38 @@ export function createFileLock(
     throw new Error(`Failed to acquire file lock for "${filePath}" within ${timeout}ms timeout`)
   }
 }
+
+export type FileLockReleaser = () => Promise<void>
+
+/**
+ * Non-blocking variant of createFileLock for callers that should SKIP work
+ * when the file is currently locked (e.g. the yjs-server 5s auto-save timer)
+ * instead of waiting. Uses the SAME `lock:file:<path>` key and Lua release
+ * script as createFileLock, so it interoperates with the backend's blocking
+ * lock: auto-save simply yields while a backend git operation holds the lock,
+ * then writes on the next tick.
+ *
+ * @returns a releaser function if the lock was acquired, or null if it is held.
+ */
+export function createTryFileLock(
+  redis: Redis,
+  options: { lockExpiration?: number } = {}
+): (filePath: string) => Promise<FileLockReleaser | null> {
+  const { lockExpiration = 10000 } = options
+
+  return async function tryFileLock(
+    filePath: string
+  ): Promise<FileLockReleaser | null> {
+    const lockKey = `lock:file:${filePath}`
+    const lockValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+    const result = await redis.set(lockKey, lockValue, 'PX', lockExpiration, 'NX')
+    if (result !== 'OK') {
+      return null
+    }
+
+    return async () => {
+      await redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockValue)
+    }
+  }
+}
