@@ -66,7 +66,8 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
     return { shares }
   })
 
-  app.get('/api/shares/:token/document', async (request, reply) => {
+  // Resolve share token (public — no auth)
+  app.get('/api/shares/:token', async (request, reply) => {
     const { token } = request.params as any
     const share = await prisma.share.findUnique({
       where: { token },
