@@ -97,7 +97,8 @@ export class DocumentService {
       // Git commit
       const result = await this.git.commit(
         `Create document ${title} [user:${user.login}]`,
-        author
+        author,
+        [filePath]
       )
 
       if (!result) {
@@ -195,7 +196,7 @@ export class DocumentService {
     }
 
     await withFileLock(document.filePath, async () => {
-      const result = await this.git.commit(message, author)
+      const result = await this.git.commit(message, author, [document.filePath])
       if (!result) {
         throw new Error('No changes to commit')
       }
@@ -359,7 +360,8 @@ export class DocumentService {
       // Commit the rename
       const result = await this.git.commit(
         `Rename document ${document.title} -> ${newTitle} [user:${user.login}]`,
-        author
+        author,
+        [] // git mv already staged the rename; commit staged only, no sweep
       )
 
       if (!result) {
@@ -416,7 +418,8 @@ export class DocumentService {
       // Commit the deletion
       const result = await this.git.commit(
         `Delete document ${document.title} [user:${user.login}]`,
-        author
+        author,
+        [] // git rm already staged the deletion; commit staged only, no sweep
       )
 
       if (!result) {
@@ -463,7 +466,7 @@ export class DocumentService {
         await this.flushYjsDocument(id)
       }
 
-      const result = await this.git.commit(message, author)
+      const result = await this.git.commit(message, author, [document.filePath])
       if (!result) {
         throw new Error('No changes to commit')
       }
