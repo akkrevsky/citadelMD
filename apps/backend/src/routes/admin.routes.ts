@@ -11,7 +11,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         quota: true,
       },
     })
-    return { users }
+    return { users: users.map((u: any) => ({
+      ...u,
+      quota: u.quota ? { ...u.quota, maxStorageBytes: Number(u.quota.maxStorageBytes), usedStorageBytes: Number(u.quota.usedStorageBytes) } : null,
+    })) }
   })
 
   // PUT /api/admin/users/:userId/quota — set user quota
@@ -27,6 +30,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       create: { userId, maxStorageBytes: BigInt(maxStorageBytes), usedStorageBytes: BigInt(0) },
       update: { maxStorageBytes: BigInt(maxStorageBytes) },
     })
-    return { quota }
+    return { quota: { ...quota, maxStorageBytes: Number(quota.maxStorageBytes), usedStorageBytes: Number(quota.usedStorageBytes) } }
   })
 }
