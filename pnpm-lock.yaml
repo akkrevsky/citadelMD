@@ -78,6 +78,9 @@ importers:
       '@citadelmd/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       fastify:
         specifier: ^4.28.0
         version: 4.29.1
@@ -116,6 +119,9 @@ importers:
       '@citadelmd/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       fastify:
         specifier: ^4.28.0
         version: 4.29.1

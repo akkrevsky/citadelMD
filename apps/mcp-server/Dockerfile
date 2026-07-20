@@ -8,12 +8,12 @@ COPY packages/shared ./packages/shared
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @citadelmd/shared build
 RUN pnpm --filter @citadelmd/mcp-server build
-RUN pnpm --filter @citadelmd/mcp-server --legacy --prod deploy /tmp/pruned
 
 FROM node:20-alpine
 RUN apk add --no-cache git
 WORKDIR /app
-COPY --from=build /tmp/pruned ./
+COPY --from=build /app/ ./
+WORKDIR /app/apps/mcp-server
 ENV NODE_ENV=production
 ENV GIT_REPO_PATH=/data/docs
 EXPOSE 3100

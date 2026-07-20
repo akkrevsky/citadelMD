@@ -99,7 +99,7 @@ services:
     volumes:
       - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -123,7 +123,7 @@ services:
     volumes:
       - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:1234/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:1234/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -149,7 +149,7 @@ services:
     volumes:
       - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/health"]
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3100/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
