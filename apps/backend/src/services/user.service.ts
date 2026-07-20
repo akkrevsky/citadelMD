@@ -66,7 +66,7 @@ export async function listUsers(): Promise<{ data: UserResponse[]; total: number
     orderBy: { createdAt: 'asc' },
   })
   return {
-    data: users.map(toUserResponse),
+    data: users.map((u) => toUserResponse(u)),
     total: users.length,
   }
 }
