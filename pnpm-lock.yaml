@@ -150,9 +150,16 @@ importers:
 
   packages/shared:
     dependencies:
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.11.1(supports-color@7.2.0)
       simple-git:
         specifier: ^3.25.0
         version: 3.36.0(supports-color@7.2.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
 
 packages:
 
