@@ -187,7 +187,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       // TODO: Check document permissions (to be implemented later)
-      await documentService.commitChanges(id, message.trim(), request.user!.sub)
+      await documentService.commitDocument(id, message.trim(), request.user!.sub)
       return reply.status(200).send({ message: 'Changes committed successfully' })
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number }
@@ -197,12 +197,13 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         code = 'DOCUMENT_NOT_FOUND'
       } else if (e.message.includes('No changes to commit')) {
         code = 'NO_CHANGES'
-      } else if (e.message.toLowerCase().includes('timeout') || e.message.toLowerCase().includes('lock')) {
+      } else if (e.message.toLowerCase().includes('locked')) {
         code = 'CONFLICT'
       } else {
         code = 'COMMIT_ERROR'
       }
-      return reply.status(status === 404 ? 404 : code === 'NO_CHANGES' ? 409 : code === 'CONFLICT' ? 409 : 500).send({
+      const responseStatus = status === 404 ? 404 : code === 'NO_CHANGES' ? 409 : code === 'CONFLICT' ? 409 : 500
+      return reply.status(responseStatus).send({
         error: { code, message: e.message },
       })
     }
@@ -214,7 +215,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
 
     try {
       // TODO: Check document permissions (to be implemented later)
-      await documentService.discardChanges(id)
+      await documentService.discardDocument(id)
       return reply.status(200).send({ message: 'Changes discarded successfully' })
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number }
@@ -222,12 +223,13 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       let code: string
       if (status === 404) {
         code = 'DOCUMENT_NOT_FOUND'
-      } else if (e.message.toLowerCase().includes('timeout') || e.message.toLowerCase().includes('lock')) {
+      } else if (e.message.toLowerCase().includes('locked')) {
         code = 'CONFLICT'
       } else {
         code = 'DISCARD_ERROR'
       }
-      return reply.status(status === 404 ? 404 : code === 'CONFLICT' ? 409 : 500).send({
+      const responseStatus = status === 404 ? 404 : code === 'CONFLICT' ? 409 : 500
+      return reply.status(responseStatus).send({
         error: { code, message: e.message },
       })
     }
