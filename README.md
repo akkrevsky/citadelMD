@@ -2,7 +2,7 @@
 
 Self-hosted collaborative Markdown editor with real-time CRDT, Git-based versioning, manual commit/discard/restore, and MCP server for AI agents.
 
-Status: **Specification v3 ready** (2026-07-19). Implementation not started.
+Status: **Phase 3 Complete** (2026-07-20). Real-time collaborative editing now available.
 
 ## What this is
 
@@ -55,6 +55,25 @@ The full specification lives under `docs/` and is the source of truth for implem
 | [docs/07-agent-roadmap.md](docs/07-agent-roadmap.md) | 7 phases for code agents (Phase 0-6) |
 
 Detailed bite-sized implementation plans (produced by the `writing-plans` workflow) live under `docs/plans/`.
+
+## Phase 3 - Real-time Collaborative Editing ✅
+
+- **Yjs Integration**: Real-time CRDT-based collaborative editing
+- **CodeMirror 6**: Modern code editor with Markdown support
+- **WebSocket Gateway**: Live document synchronization via y-redis
+- **Auto-save**: Changes saved to working tree every 5 seconds
+- **Manual Commit**: User-controlled versioning with commit messages
+- **Discard Changes**: Rollback to last committed version
+- **Distributed Locking**: Redis-based file locking for safe operations
+- **Connection Status**: Real-time connection indicators
+
+### Usage
+
+1. Navigate to Dashboard
+2. Click "Edit" on any document
+3. Start typing - changes sync in real-time with other users
+4. Use "Commit" button to save versions to Git history
+5. Use "Discard Changes" to rollback unsaved changes
 
 ## Architecture decisions (v3, 2026-07-19)
 
