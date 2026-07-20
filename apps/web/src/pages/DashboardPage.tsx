@@ -32,6 +32,7 @@ export default function DashboardPage() {
   }, [])
 
   function renderTree(items: TreeItem[], depth = 0) {
+    if (!Array.isArray(items)) return null
     return items.map((item) => {
       if (item.type === 'folder') {
         return (

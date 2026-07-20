@@ -115,8 +115,13 @@ class ApiClient {
   }
 
   // Folder tree
-  getTree() {
-    return this.request<TreeItem[]>('/tree')
+  async getTree(): Promise<TreeItem[]> {
+    try {
+      const res = await this.request<{ tree: TreeItem[] }>('/tree')
+      return Array.isArray(res.tree) ? res.tree : []
+    } catch {
+      return []
+    }
   }
 }
 
