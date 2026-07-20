@@ -9,10 +9,13 @@ build/
 
 # Env & secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
 *.key
+*.crt
+*.cer
+*.p12
 
 # Docker
 docker-compose.override.yml
@@ -33,6 +36,7 @@ Thumbs.db
 # Test coverage
 coverage/
 .nyc_output/
+test-results/
 
 # Prisma
 apps/backend/prisma/*.db
