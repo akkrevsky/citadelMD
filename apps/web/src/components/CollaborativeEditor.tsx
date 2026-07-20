@@ -39,8 +39,8 @@ export function CollaborativeEditor({
       ytext.insert(0, initialContent)
     }
     
-    // Setup WebSocket provider
-    const wsUrl = `ws://localhost:1234` // yjs-server WebSocket
+    // Setup WebSocket provider (WS on port 1235, HTTP on 1234)
+    const wsUrl = `ws://localhost:1235` // yjs-server WebSocket
     const docId = `doc-${documentId}`
     
     const provider = new WebsocketProvider(wsUrl, docId, ydoc, {

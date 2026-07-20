@@ -6,8 +6,8 @@ let yjsWS: YjsWebSocketServer
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
 
-  // Initialize WebSocket server
-  yjsWS = new YjsWebSocketServer()
+  // Initialize WebSocket server on port 1235 (HTTP stays on 1234)
+  yjsWS = new YjsWebSocketServer(1235)
 
   app.get('/health', async () => {
     return { status: 'ok', service: 'yjs-server' }

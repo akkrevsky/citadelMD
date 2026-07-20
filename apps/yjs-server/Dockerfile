@@ -5,7 +5,7 @@ RUN npm install -g pnpm
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/yjs-server ./apps/yjs-server
 COPY packages/shared ./packages/shared
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter @citadelmd/shared build
 RUN pnpm --filter @citadelmd/yjs-server build
 
