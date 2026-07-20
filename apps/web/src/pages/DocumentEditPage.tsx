@@ -195,8 +195,8 @@ export function DocumentEditPage() {
             {isDiscarding ? 'Discarding...' : 'Discard Changes'}
           </button>
 
-          <button onClick={() => navigate('/dashboard')}>
-            Back to Dashboard
+          <button onClick={() => navigate('/')}>
+          Back to Dashboard
           </button>
         </div>
       </div>
