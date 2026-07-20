@@ -14,6 +14,9 @@ RUN apk add --no-cache git
 WORKDIR /app
 COPY --from=build /app/ ./
 WORKDIR /app/apps/mcp-server
+# Run as non-root uid 1000 (matches host user sp) so document files stay host-writable
+RUN chown -R node:node /app
+USER node
 ENV NODE_ENV=production
 ENV GIT_REPO_PATH=/data/docs
 EXPOSE 3100
