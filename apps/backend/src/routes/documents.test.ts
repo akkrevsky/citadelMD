@@ -3,49 +3,46 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import type { UserRole } from '@citadelmd/shared'
 
 // Mock the document service 
+const mockDocumentService = {
+  createDocument: vi.fn(),
+  getDocument: vi.fn(),
+  getDocumentContent: vi.fn(),
+  updateDocument: vi.fn(),
+  deleteDocument: vi.fn(),
+  commitChanges: vi.fn(),
+  discardChanges: vi.fn(),
+  getUncommittedDiff: vi.fn(),
+  getDocumentRevisions: vi.fn(),
+  getRevisionContent: vi.fn(),
+  restoreToRevision: vi.fn(),
+}
+
 vi.mock('../services/document.service.js', () => ({
-  getDocumentService: () => ({
-    createDocument: vi.fn(),
-    getDocument: vi.fn(),
-    getDocumentContent: vi.fn(),
-    updateDocument: vi.fn(),
-    deleteDocument: vi.fn(),
-    commitChanges: vi.fn(),
-    discardChanges: vi.fn(),
-    getUncommittedDiff: vi.fn(),
-    getDocumentRevisions: vi.fn(),
-    getRevisionContent: vi.fn(),
-    restoreToRevision: vi.fn(),
+  getDocumentService: () => mockDocumentService
+}))
+
+// Mock the auth service to return a valid token
+vi.mock('../services/auth.service.js', () => ({
+  verifyToken: vi.fn().mockReturnValue({
+    sub: 'user-123',
+    login: 'testuser',
+    role: 'VIEWER'
   })
 }))
 
 describe('Document Routes', () => {
   let app: FastifyInstance
-  let mockService: any
 
   beforeEach(async () => {
-    // Get the mocked service
-    const { getDocumentService } = await import('../services/document.service.js')
-    mockService = getDocumentService()
-    
     // Create fresh app
     app = Fastify({ logger: false })
     
-    // Mock auth middleware
-    app.addHook('preHandler', async (request) => {
-      ;(request as any).user = { 
-        sub: 'user-123', 
-        login: 'testuser', 
-        role: 'VIEWER' as UserRole 
-      }
-    })
-    
     // Register document routes
     const { documentRoutes } = await import('./documents.js')
-    await app.register(documentRoutes, { prefix: '/api' })
+    await app.register(documentRoutes)
     
     // Reset all mocks
-    Object.values(mockService).forEach((mock: any) => mock.mockReset())
+    Object.values(mockDocumentService).forEach((mock: any) => mock.mockReset())
   })
 
   afterEach(async () => {
@@ -59,28 +56,37 @@ describe('Document Routes', () => {
         folderId: 'folder-123',
         title: 'Test Document',
         filePath: 'folder/test-document.md',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: '2026-07-20T09:58:20.373Z',
+        updatedAt: '2026-07-20T09:58:20.373Z',
         createdById: 'user-123',
         hasUncommittedChanges: false,
       }
 
-      mockService.createDocument.mockResolvedValue(mockDocument)
+      // Mock returns Date objects but JSON serialization converts to strings
+      mockDocumentService.createDocument.mockResolvedValue({
+        ...mockDocument,
+        createdAt: new Date(mockDocument.createdAt),
+        updatedAt: new Date(mockDocument.updatedAt),
+      })
 
       const response = await app.inject({
         method: 'POST',
         url: '/api/folders/folder-123/documents',
+        headers: { authorization: 'Bearer test-token' },
         payload: { title: 'Test Document' },
       })
 
       expect(response.statusCode).toBe(201)
-      expect(JSON.parse(response.body)).toEqual(mockDocument)
+      if (response.body) {
+        expect(JSON.parse(response.body)).toEqual(mockDocument)
+      }
     })
 
     it('should return 400 for missing title', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/folders/folder-123/documents',
+        headers: { authorization: 'Bearer test-token' },
         payload: {},
       })
 
@@ -97,17 +103,22 @@ describe('Document Routes', () => {
         folderId: 'folder-123',
         title: 'Test Document',
         filePath: 'folder/test-document.md',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: '2026-07-20T09:58:20.397Z',
+        updatedAt: '2026-07-20T09:58:20.397Z',
         createdById: 'user-123',
         hasUncommittedChanges: false,
       }
 
-      mockService.getDocument.mockResolvedValue(mockDocument)
+      mockDocumentService.getDocument.mockResolvedValue({
+        ...mockDocument,
+        createdAt: new Date(mockDocument.createdAt),
+        updatedAt: new Date(mockDocument.updatedAt),
+      })
 
       const response = await app.inject({
         method: 'GET',
         url: '/api/documents/doc-123',
+        headers: { authorization: 'Bearer test-token' },
       })
 
       expect(response.statusCode).toBe(200)
@@ -115,11 +126,12 @@ describe('Document Routes', () => {
     })
 
     it('should return 404 for document not found', async () => {
-      mockService.getDocument.mockResolvedValue(null)
+      mockDocumentService.getDocument.mockResolvedValue(null)
 
       const response = await app.inject({
         method: 'GET',
         url: '/api/documents/doc-123',
+        headers: { authorization: 'Bearer test-token' },
       })
 
       expect(response.statusCode).toBe(404)
@@ -130,11 +142,12 @@ describe('Document Routes', () => {
 
   describe('POST /api/documents/:id/commit', () => {
     it('should commit changes successfully', async () => {
-      mockService.commitChanges.mockResolvedValue(undefined)
+      mockDocumentService.commitChanges.mockResolvedValue(undefined)
 
       const response = await app.inject({
         method: 'POST',
         url: '/api/documents/doc-123/commit',
+        headers: { authorization: 'Bearer test-token' },
         payload: { message: 'Fix typo' },
       })
 
@@ -147,6 +160,7 @@ describe('Document Routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/api/documents/doc-123/commit',
+        headers: { authorization: 'Bearer test-token' },
         payload: {},
       })
 
@@ -168,11 +182,12 @@ describe('Document Routes', () => {
         },
       ]
 
-      mockService.getDocumentRevisions.mockResolvedValue(mockRevisions)
+      mockDocumentService.getDocumentRevisions.mockResolvedValue(mockRevisions)
 
       const response = await app.inject({
         method: 'GET',
         url: '/api/documents/doc-123/revisions',
+        headers: { authorization: 'Bearer test-token' },
       })
 
       expect(response.statusCode).toBe(200)
@@ -183,11 +198,12 @@ describe('Document Routes', () => {
 
   describe('DELETE /api/documents/:id', () => {
     it('should delete document successfully', async () => {
-      mockService.deleteDocument.mockResolvedValue(undefined)
+      mockDocumentService.deleteDocument.mockResolvedValue(undefined)
 
       const response = await app.inject({
         method: 'DELETE',
         url: '/api/documents/doc-123',
+        headers: { authorization: 'Bearer test-token' },
       })
 
       expect(response.statusCode).toBe(204)
