@@ -10,7 +10,9 @@ const mockDocumentService = {
   updateDocument: vi.fn(),
   deleteDocument: vi.fn(),
   commitChanges: vi.fn(),
+  commitDocument: vi.fn(),
   discardChanges: vi.fn(),
+  discardDocument: vi.fn(),
   getUncommittedDiff: vi.fn(),
   getDocumentRevisions: vi.fn(),
   getRevisionContent: vi.fn(),
@@ -19,6 +21,13 @@ const mockDocumentService = {
 
 vi.mock('../services/document.service.js', () => ({
   getDocumentService: () => mockDocumentService
+}))
+
+// The route enforces folder permissions via the authz layer; mock it so these
+// route tests (which mock the document service) do not require a database.
+vi.mock('../services/authz.js', () => ({
+  assertFolderPermission: vi.fn().mockResolvedValue(undefined),
+  getDocumentFolderId: vi.fn().mockResolvedValue('folder-test'),
 }))
 
 // Mock the auth service to return a valid token
@@ -142,7 +151,7 @@ describe('Document Routes', () => {
 
   describe('POST /api/documents/:id/commit', () => {
     it('should commit changes successfully', async () => {
-      mockDocumentService.commitChanges.mockResolvedValue(undefined)
+      mockDocumentService.commitDocument.mockResolvedValue(undefined)
 
       const response = await app.inject({
         method: 'POST',
