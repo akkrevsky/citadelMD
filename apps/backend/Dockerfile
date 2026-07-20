@@ -1,6 +1,6 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-RUN apk add --no-cache git openssl1.1-compat
+RUN apk add --no-cache git openssl
 RUN npm install -g pnpm
 ENV PRISMA_BINARY_TARGETS=linux-musl-openssl-3.0.x
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
@@ -11,7 +11,7 @@ RUN pnpm --filter @citadelmd/shared build
 RUN pnpm --filter @citadelmd/backend build
 
 FROM node:20-alpine
-RUN apk add --no-cache git openssl1.1-compat
+RUN apk add --no-cache git openssl
 ENV PRISMA_BINARY_TARGETS=linux-musl-openssl-3.0.x
 WORKDIR /app
 COPY --from=build /app/ ./
