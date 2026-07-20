@@ -402,10 +402,10 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
 
   function buildNode(f: FolderRow): FolderTreeNode {
     const children = allFolders
-      .filter((child) => child.parentId === f.id)
+      .filter((child: FolderRow) => child.parentId === f.id)
       .map(buildNode)
 
-    const documents = (docsByFolder.get(f.id) ?? []).map((d) => ({
+    const documents = (docsByFolder.get(f.id) ?? []).map((d: DocumentRow) => ({
       id: d.id,
       title: d.title,
       filePath: d.filePath,
@@ -421,7 +421,7 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
     }
   }
 
-  const tree = allFolders.filter((f) => f.parentId === null).map(buildNode)
+  const tree = allFolders.filter((f: FolderRow) => f.parentId === null).map(buildNode)
   return { tree }
 }
 
@@ -467,12 +467,14 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
   function buildNode(f: FolderRow): FolderTreeNode | null {
     if (!accessibleFolderIds.has(f.id)) return null
 
-    const children = allFolders
-      .filter((child) => child.parentId === f.id)
-      .map(buildNode)
-      .filter((n): n is FolderTreeNode => n !== null)
+    const children: FolderTreeNode[] = []
+    for (const child of allFolders) {
+      if (child.parentId !== f.id) continue
+      const node = buildNode(child)
+      if (node !== null) children.push(node)
+    }
 
-    const documents = (orgDocsByFolder.get(f.id) ?? []).map((d) => ({
+    const documents = (orgDocsByFolder.get(f.id) ?? []).map((d: DocumentRow) => ({
       id: d.id,
       title: d.title,
       filePath: d.filePath,
@@ -493,10 +495,12 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
     }
   }
 
-  const tree = allFolders
-    .filter((f) => f.parentId === null)
-    .map(buildNode)
-    .filter((n): n is FolderTreeNode => n !== null)
+  const tree: FolderTreeNode[] = []
+  for (const f of allFolders) {
+    if (f.parentId !== null) continue
+    const node = buildNode(f)
+    if (node !== null) tree.push(node)
+  }
 
   return { tree }
 }
@@ -516,9 +520,9 @@ export async function getFolderPermissions(folderId: string): Promise<FolderPerm
     },
   })
 
-  return perms.map((p) => ({
+  return perms.map((p: { userId: string; user: { login: string | null }; permission: string }) => ({
     userId: p.userId,
-    login: p.user.login,
+    login: p.user.login ?? 'unknown',
     permission: p.permission as FolderPermissionLevel,
   }))
 }
@@ -533,12 +537,12 @@ export async function setFolderPermissions(
   }
 
   // Validate all users exist
-  const userIds = permissions.map((p) => p.userId)
+  const userIds = permissions.map((p: { userId: string; permission: FolderPermissionLevel }) => p.userId)
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
     select: { id: true, login: true },
   })
-  const userMap = new Map(users.map((u) => [u.id, u.login]))
+  const userMap = new Map<string, string>(users.map((u: { id: string; login: string | null }) => [u.id, u.login ?? 'unknown']))
 
   for (const uid of userIds) {
     if (!userMap.has(uid)) {
@@ -551,7 +555,7 @@ export async function setFolderPermissions(
 
   if (permissions.length > 0) {
     await prisma.folderPermission.createMany({
-      data: permissions.map((p) => ({
+      data: permissions.map((p: { userId: string; permission: FolderPermissionLevel }) => ({
         folderId,
         userId: p.userId,
         permission: p.permission,
@@ -560,7 +564,7 @@ export async function setFolderPermissions(
   }
 
   // Return updated permissions
-  return permissions.map((p) => ({
+  return permissions.map((p: { userId: string; permission: FolderPermissionLevel }) => ({
     userId: p.userId,
     login: userMap.get(p.userId) ?? 'unknown',
     permission: p.permission,
