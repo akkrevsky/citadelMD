@@ -60,6 +60,34 @@ The tests specifically check for:
 ✅ **Fixed**: Port conflicts (moved to 8081)  
 ✅ **Fixed**: Authentication flow working  
 
+## Phase 3 Real-time Editing Tests
+
+### Automated Tests (Playwright)
+- `realtime-editing.spec.ts` - Tests collaborative editing workflow
+- Tests document creation, editing, commit, and discard operations
+- Validates WebSocket connections and real-time synchronization
+
+### Manual Testing Steps
+1. Start all services: `docker compose up -d`
+2. Open two browser windows to http://localhost:8081
+3. Login to both with admin/admin123
+4. Open same document in both windows via Edit link
+5. Type in one window, verify changes appear in the other
+6. Test commit/discard operations
+
+### Test Coverage
+- Document loading and navigation
+- Real-time collaborative editing
+- WebSocket connection status
+- Commit workflow with message validation
+- Discard changes with confirmation
+- Change detection indicators
+
+### Prerequisites
+- Docker services running (all containers healthy)
+- Admin user seeded in database
+- At least one document exists for testing
+
 ## Next Steps
 
 1. **Install Playwright**: `npm install @playwright/test` when network allows
@@ -74,6 +102,9 @@ The tests specifically check for:
 - [ ] Navigation between pages  
 - [ ] Folder tree interaction
 - [ ] Document creation (when implemented)
+- [ ] Real-time collaborative editing
+- [ ] Commit/discard workflow
+- [ ] WebSocket connection status
 - [ ] Error handling (wrong credentials, network failures)
 - [ ] Browser compatibility (Chrome, Firefox, Safari)
 - [ ] Responsive design (mobile, tablet views)
