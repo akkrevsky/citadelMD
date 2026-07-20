@@ -119,6 +119,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?required}
       GIT_REPO_PATH: /data/docs
+      BACKEND_API_URL: http://backend:3000
       PORT: "1234"
     volumes:
       - ${GIT_REPO_HOST_PATH:-/var/lib/md-collab/docs}:/data/docs:rw

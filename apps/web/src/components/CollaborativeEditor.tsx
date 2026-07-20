@@ -13,6 +13,7 @@ interface CollaborativeEditorProps {
   documentId: string
   initialContent?: string
   readOnly?: boolean
+  shareToken?: string
   onContentChange?: (content: string) => void
 }
 
@@ -20,6 +21,7 @@ export function CollaborativeEditor({
   documentId, 
   initialContent = '', 
   readOnly = false,
+  shareToken,
   onContentChange 
 }: CollaborativeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
@@ -45,7 +47,7 @@ export function CollaborativeEditor({
     
     const provider = new WebsocketProvider(wsUrl, docId, ydoc, {
       params: {
-        // TODO: Add JWT token for authentication
+        ...(shareToken ? { token: shareToken } : {})
       }
     })
     
@@ -101,7 +103,7 @@ export function CollaborativeEditor({
       provider.destroy()
       view.destroy()
     }
-  }, [documentId, initialContent, readOnly, onContentChange])
+  }, [documentId, initialContent, readOnly, shareToken, onContentChange])
   
   return (
     <div className="collaborative-editor">
