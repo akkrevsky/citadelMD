@@ -1,115 +1,108 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useRef, useState } from 'react'
+
+interface UseFileUploadOptions {
+  documentId: string
+  onInsert?: (markdown: string) => void
+}
 
 interface UploadState {
-  isUploading: boolean
+  uploading: boolean
   progress: number
   error: string | null
 }
 
-interface UseFileUploadOptions {
-  documentId: string
-  onInsert: (text: string) => void
-}
-
-interface UseFileUploadReturn {
-  uploadState: UploadState
-  uploadFile: (file: File) => Promise<void>
-  handlePaste: (e: ClipboardEvent) => void
-  handleDrop: (e: DragEvent) => void
-  handleDragOver: (e: DragEvent) => void
-}
-
-export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions): UseFileUploadReturn {
+export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions) {
   const [uploadState, setUploadState] = useState<UploadState>({
-    isUploading: false,
+    uploading: false,
     progress: 0,
     error: null,
   })
 
-  const getAuthToken = useCallback((): string | null => {
-    const match = document.cookie.match(/(?:^|;\s*)token=([^;]+)/)
-    return match ? match[1] : null
-  }, [])
-
   const uploadFile = useCallback(async (file: File) => {
-    setUploadState({ isUploading: true, progress: 0, error: null })
+    const allowedTypes = ['image/', 'application/pdf', 'text/plain', 'text/markdown']
+    if (!allowedTypes.some(t => file.type.startsWith(t))) {
+      setUploadState({ uploading: false, progress: 0, error: `File type ${file.type} not allowed` })
+      return
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      setUploadState({ uploading: false, progress: 0, error: 'File exceeds 25 MB limit' })
+      return
+    }
+
+    setUploadState({ uploading: true, progress: 0, error: null })
 
     try {
-      const token = getAuthToken()
-      if (!token) throw new Error('Not authenticated')
-
       const formData = new FormData()
       formData.append('file', file)
       formData.append('documentId', documentId)
 
       const xhr = new XMLHttpRequest()
-      xhr.open('POST', '/api/uploads')
 
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      return new Promise<void>((resolve, reject) => {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100)
+            setUploadState(prev => ({ ...prev, progress }))
+          }
+        })
 
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setUploadState((s) => ({ ...s, progress: Math.round((e.loaded / e.total) * 100) }))
-        }
-      }
-
-      const result = await new Promise<any>((resolve, reject) => {
-        xhr.onload = () => {
+        xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText))
+            const result = JSON.parse(xhr.responseText)
+            const markdown = `![${result.upload.fileName}](${result.upload.url})`
+            onInsert?.(markdown)
+            setUploadState({ uploading: false, progress: 100, error: null })
+            resolve()
           } else {
             try {
-              reject(new Error(JSON.parse(xhr.responseText).error?.message || 'Upload failed'))
+              const error = JSON.parse(xhr.responseText)
+              setUploadState({ uploading: false, progress: 0, error: error.error?.message || 'Upload failed' })
             } catch {
-              reject(new Error('Upload failed'))
+              setUploadState({ uploading: false, progress: 0, error: 'Upload failed' })
             }
+            reject(new Error('Upload failed'))
           }
-        }
-        xhr.onerror = () => reject(new Error('Network error'))
+        })
+
+        xhr.addEventListener('error', () => {
+          setUploadState({ uploading: false, progress: 0, error: 'Network error' })
+          reject(new Error('Network error'))
+        })
+
+        xhr.open('POST', '/api/uploads')
+        xhr.withCredentials = true
         xhr.send(formData)
       })
-
-      // Insert markdown image syntax
-      const isImage = file.type.startsWith('image/')
-      const insertText = isImage
-        ? `![${file.name}](${result.upload.url})\n`
-        : `[${file.name}](${result.upload.url})\n`
-
-      onInsert(insertText)
-      setUploadState({ isUploading: false, progress: 100, error: null })
-    } catch (err: any) {
-      setUploadState({ isUploading: false, progress: 0, error: err.message })
+    } catch {
+      setUploadState({ uploading: false, progress: 0, error: 'Upload failed' })
     }
-  }, [documentId, onInsert, getAuthToken])
+  }, [documentId, onInsert])
 
-  const handlePaste = useCallback((e: ClipboardEvent) => {
-    const items = e.clipboardData?.items
+  const handlePaste = useCallback(async (event: ClipboardEvent) => {
+    const items = event.clipboardData?.items
     if (!items) return
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i]
-      if (item.type.startsWith('image/')) {
-        e.preventDefault()
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file') {
+        event.preventDefault()
         const file = item.getAsFile()
-        if (file) uploadFile(file)
-        break
+        if (file) await uploadFile(file)
       }
     }
   }, [uploadFile])
 
-  const handleDrop = useCallback((e: DragEvent) => {
-    e.preventDefault()
-    const files = e.dataTransfer?.files
+  const handleDrop = useCallback(async (event: DragEvent) => {
+    event.preventDefault()
+    const files = event.dataTransfer?.files
     if (!files || files.length === 0) return
-
-    const file = files[0]
-    if (file.type.startsWith('image/') || file.type === 'application/pdf' || file.type.startsWith('text/')) {
-      uploadFile(file)
+    for (const file of Array.from(files)) {
+      await uploadFile(file)
     }
   }, [uploadFile])
 
-  const handleDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault()
+  const handleDragOver = useCallback((event: DragEvent) => {
+    event.preventDefault()
   }, [])
 
   return { uploadState, uploadFile, handlePaste, handleDrop, handleDragOver }
