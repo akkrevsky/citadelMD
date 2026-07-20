@@ -44,7 +44,6 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
     reply.code(201)
     return {
       share: {
-        id: share.id,
         token: share.token,
         permission: share.permission,
         expiresAt: share.expiresAt,
@@ -60,7 +59,7 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
       where: { documentId },
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true, token: true, permission: true, expiresAt: true, createdAt: true,
+        token: true, permission: true, expiresAt: true, createdAt: true,
         createdBy: { select: { login: true, displayName: true } },
       },
     })
@@ -98,16 +97,16 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
   })
 
   // Revoke share
-  app.delete('/api/shares/:id', { preHandler: [verifyAuth] }, async (request, reply) => {
-    const { id } = request.params as any
-    const share = await prisma.share.findUnique({ where: { id } })
+  app.delete('/api/shares/:token', { preHandler: [verifyAuth] }, async (request, reply) => {
+    const { token } = request.params as any
+    const share = await prisma.share.findUnique({ where: { token } })
 
     if (!share) {
       reply.code(404)
       return { error: { code: 'SHARE_NOT_FOUND', message: 'Share not found' } }
     }
 
-    await prisma.share.delete({ where: { id } })
+    await prisma.share.delete({ where: { token } })
     reply.code(204)
   })
 }

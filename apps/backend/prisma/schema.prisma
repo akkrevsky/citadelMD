@@ -148,8 +148,8 @@ model Upload {
 model UserQuota {
   userId           String   @id @map("user_id") @db.Uuid
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  maxStorageBytes  Int      @default(5368709120) @map("max_storage_bytes") // 5 GB
-  usedStorageBytes Int      @default(0) @map("used_storage_bytes")
+  maxStorageBytes  BigInt   @default(5368709120) @map("max_storage_bytes") // 5 GB
+  usedStorageBytes BigInt   @default(0) @map("used_storage_bytes")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("user_quotas")

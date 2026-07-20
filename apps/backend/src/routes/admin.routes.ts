@@ -7,11 +7,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/admin/users', { preHandler: [verifyAuth, requireRole('ADMIN')] }, async () => {
     const users = await prisma.user.findMany({
       select: {
-        id: true,
-        login: true,
-        displayName: true,
-        role: true,
-        active: true,
+        id: true, login: true, displayName: true, role: true, active: true,
         quota: true,
       },
     })
@@ -28,8 +24,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
     const quota = await prisma.userQuota.upsert({
       where: { userId },
-      create: { userId, maxStorageBytes, usedStorageBytes: 0 },
-      update: { maxStorageBytes },
+      create: { userId, maxStorageBytes: BigInt(maxStorageBytes), usedStorageBytes: BigInt(0) },
+      update: { maxStorageBytes: BigInt(maxStorageBytes) },
     })
     return { quota }
   })

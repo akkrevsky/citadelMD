@@ -7,6 +7,7 @@ import { folderRoutes } from './routes/folders.js'
 import { documentRoutes } from './routes/documents.js'
 import { uploadRoutes } from './routes/upload.routes.js'
 import { shareRoutes } from './routes/share.routes.js'
+import { adminRoutes } from './routes/admin.routes.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
@@ -37,6 +38,9 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Share routes
   await app.register(shareRoutes)
+
+  // Admin routes
+  await app.register(adminRoutes)
 
   return app
 }
