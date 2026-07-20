@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth.js'
 import { userRoutes } from './routes/users.js'
 import { folderRoutes } from './routes/folders.js'
 import { documentRoutes } from './routes/documents.js'
+import { uploadRoutes } from './routes/upload.routes.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
@@ -29,6 +30,9 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Document routes
   await app.register(documentRoutes)
+
+  // Upload routes
+  await app.register(uploadRoutes)
 
   return app
 }
