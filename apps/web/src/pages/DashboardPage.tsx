@@ -104,6 +104,9 @@ export default function DashboardPage() {
           {/* Folder tree */}
           <div className="tree-section">
             <div className="tree-section-title">Folders</div>
+            <button className="btn btn-sm btn-primary tree-action-btn" onClick={() => navigate('/')}>
+              + New Document
+            </button>
             {treeLoading ? (
               <div className="tree-empty">Loading...</div>
             ) : tree.length === 0 ? (

@@ -186,6 +186,14 @@ class ApiClient {
       method: 'POST',
     })
   }
+
+  // Create document in folder
+  createDocument(folderId: string, title: string) {
+    return this.request<Document>(`/folders/${folderId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    })
+  }
 }
 
 export const api = new ApiClient()
