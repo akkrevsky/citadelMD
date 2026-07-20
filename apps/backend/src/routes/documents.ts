@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { getDocumentService } from '../services/document.service.js'
 import { assertFolderPermission, getDocumentFolderId } from '../services/authz.js'
+import { getEffectivePermission } from '../services/folder.service.js'
 
 export async function documentRoutes(app: FastifyInstance): Promise<void> {
   // All document routes require authentication
@@ -348,6 +349,36 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       }
       return reply.status(status === 404 ? 404 : code === 'CONFLICT' ? 409 : 500).send({
         error: { code, message: e.message },
+      })
+    }
+  })
+
+  // GET /api/documents/:id/ws-permission — effective permission for the Yjs WS
+  // handshake (VIEW -> read-only, EDIT/ADMIN -> writable). Used by yjs-server to
+  // authorize a connection after validating the session cookie.
+  app.get('/api/documents/:id/ws-permission', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    try {
+      const folderId = await getDocumentFolderId(id)
+      if (!folderId) {
+        return reply.status(404).send({
+          error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' },
+        })
+      }
+      if (request.user!.role === 'ADMIN') {
+        return { permission: 'EDIT' }
+      }
+      const perm = await getEffectivePermission(request.user!.sub, folderId)
+      if (perm === null) {
+        return reply.status(403).send({
+          error: { code: 'FORBIDDEN', message: 'No access to this document' },
+        })
+      }
+      return { permission: perm === 'VIEW' ? 'VIEW' : 'EDIT' }
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      return reply.status(e.statusCode ?? 500).send({
+        error: { code: 'PERMISSION_ERROR', message: e.message },
       })
     }
   })
