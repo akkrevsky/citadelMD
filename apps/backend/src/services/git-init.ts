@@ -21,7 +21,7 @@ export async function ensureGitRepo(repoPath: string): Promise<void> {
   await git.addConfig('user.email', 'system@citadelmd.local')
 
   await fs.writeFile(path.join(repoPath, 'README.md'), '# citadelMD Documents\n')
-  await git.commit('README.md', 'Initial commit', {
+  await git.commit('Initial commit', {
     name: 'citadelMD System',
     email: 'system@citadelmd.local',
   })

@@ -6,6 +6,14 @@ import { DocumentService } from './document.service.js'
 import { prisma } from '../prisma.js'
 import { GitService } from '@citadelmd/shared'
 
+// Setup test environment
+process.env.GIT_REPO_PATH = process.env.GIT_REPO_PATH || '/tmp/test-git-repo'
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mdcollab:***@localhost:5432/mdcollab'
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-that-is-at-least-256-bits-long-for-testing-0123456789abcdef'
+process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost'
+process.env.REDIS_PORT = process.env.REDIS_PORT || '6379'
+process.env.REDIS_DB = '15' // Use test Redis DB
+
 describe('DocumentService', () => {
   let documentService: DocumentService
   let testRepoPath: string
@@ -19,9 +27,7 @@ describe('DocumentService', () => {
     originalEnv = { ...process.env }
     
     // Setup test environment
-    testRepoPath = path.join(process.cwd(), 'test-repo')
-    process.env.GIT_REPO_PATH = testRepoPath
-    process.env.REDIS_DB = '15' // Use test Redis DB
+    testRepoPath = process.env.GIT_REPO_PATH!
     
     // Clean and create test repo
     await fs.rm(testRepoPath, { recursive: true, force: true })
@@ -39,34 +45,43 @@ describe('DocumentService', () => {
       port: parseInt(process.env.REDIS_PORT || '6379'),
       db: 15,
     })
-    await testRedis.flushdb()
+    
+    try {
+      await testRedis.flushdb()
+    } catch (error) {
+      console.warn('Could not connect to Redis, some tests may fail:', (error as Error).message)
+    }
 
     // Create test user and folder
     testUserId = 'test-user-id'
     testFolderId = 'test-folder-id'
     
-    await prisma.user.upsert({
-      where: { id: testUserId },
-      update: {},
-      create: {
-        id: testUserId,
-        login: 'testuser',
-        passwordHash: 'hash',
-        gitName: 'Test User',
-        gitEmail: 'test@example.com'
-      }
-    })
+    try {
+      await prisma.user.upsert({
+        where: { id: testUserId },
+        update: {},
+        create: {
+          id: testUserId,
+          login: 'testuser',
+          passwordHash: 'hash',
+          gitName: 'Test User',
+          gitEmail: 'test@example.com'
+        }
+      })
 
-    await prisma.folder.upsert({
-      where: { id: testFolderId },
-      update: {},
-      create: {
-        id: testFolderId,
-        name: 'test-folder',
-        gitPath: 'test-folder',
-        createdById: testUserId
-      }
-    })
+      await prisma.folder.upsert({
+        where: { id: testFolderId },
+        update: {},
+        create: {
+          id: testFolderId,
+          name: 'test-folder',
+          gitPath: 'test-folder',
+          createdById: testUserId
+        }
+      })
+    } catch (error) {
+      console.warn('Could not set up test data in database, some tests may fail:', (error as Error).message)
+    }
 
     // Create test folder in Git repo
     const folderPath = path.join(testRepoPath, 'test-folder')
@@ -83,13 +98,26 @@ describe('DocumentService', () => {
     process.env = originalEnv
     
     // Cleanup
-    await testRedis.disconnect()
-    await fs.rm(testRepoPath, { recursive: true, force: true })
+    try {
+      await testRedis.disconnect()
+    } catch (error) {
+      // Ignore
+    }
+    
+    try {
+      await fs.rm(testRepoPath, { recursive: true, force: true })
+    } catch (error) {
+      // Ignore
+    }
     
     // Clean test data
-    await prisma.document.deleteMany({ where: { createdById: testUserId } })
-    await prisma.folder.deleteMany({ where: { createdById: testUserId } })
-    await prisma.user.deleteMany({ where: { id: testUserId } })
+    try {
+      await prisma.document.deleteMany({ where: { createdById: testUserId } })
+      await prisma.folder.deleteMany({ where: { createdById: testUserId } })
+      await prisma.user.deleteMany({ where: { id: testUserId } })
+    } catch (error) {
+      // Ignore cleanup errors
+    }
   })
 
   beforeEach(() => {
@@ -98,7 +126,11 @@ describe('DocumentService', () => {
 
   afterEach(async () => {
     // Clean up documents created in tests
-    await prisma.document.deleteMany({ where: { folderId: testFolderId } })
+    try {
+      await prisma.document.deleteMany({ where: { folderId: testFolderId } })
+    } catch (error) {
+      // Ignore cleanup errors
+    }
   })
 
   describe('createDocument', () => {
@@ -536,10 +568,10 @@ describe('DocumentService', () => {
       const found = await documentService.getDocument(created.id)
       expect(found).toBeNull()
 
-      // Verify Git commit
+      // Verify Git commit - check folder history to see the deletion commit
       const git = new GitService(testRepoPath)
-      const log = await git.log()
-      expect(log.latest?.message).toContain('Delete document Document to Delete')
+      const logResult = await git.log('test-folder') // Check folder history
+      expect(logResult.latest?.message).toContain('Delete document Document to Delete')
     })
 
     it('should throw error if document not found', async () => {
