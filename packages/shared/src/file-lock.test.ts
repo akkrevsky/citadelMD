@@ -2,17 +2,149 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Redis } from 'ioredis'
 import { createFileLock, type FileLockOptions } from './file-lock.js'
 
-describe('file-lock', () => {
-  let redis: Redis
-  const testDb = 15 // Use Redis DB 15 for tests
+/**
+ * Mock Redis client that provides the Redis interface for testing
+ * without requiring an actual Redis server
+ */
+class MockRedis {
+  private store = new Map<string, { value: string; expiry: number }>()
+  private isConnected = true
 
-  beforeEach(async () => {
-    redis = new Redis({
+  constructor(private shouldReject = false) {}
+
+  async set(key: string, value: string, expireType?: string, expiration?: number, setMode?: string): Promise<string | null> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    if (setMode === 'NX' && this.store.has(key)) {
+      // Only set if key doesn't exist
+      const existing = this.store.get(key)!
+      if (existing.expiry > Date.now()) {
+        return null // Key exists and not expired
+      }
+    }
+
+    const expiry = expireType === 'PX' && expiration ? Date.now() + expiration : Infinity
+    this.store.set(key, { value, expiry })
+    return 'OK'
+  }
+
+  async get(key: string): Promise<string | null> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    const entry = this.store.get(key)
+    if (!entry || entry.expiry <= Date.now()) {
+      this.store.delete(key)
+      return null
+    }
+    return entry.value
+  }
+
+  async del(key: string): Promise<number> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    const existed = this.store.has(key)
+    this.store.delete(key)
+    return existed ? 1 : 0
+  }
+
+  async exists(key: string): Promise<number> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    const entry = this.store.get(key)
+    if (!entry || entry.expiry <= Date.now()) {
+      this.store.delete(key)
+      return 0
+    }
+    return 1
+  }
+
+  async pttl(key: string): Promise<number> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    const entry = this.store.get(key)
+    if (!entry) return -2 // Key doesn't exist
+    if (entry.expiry === Infinity) return -1 // No expiration
+    
+    const remaining = entry.expiry - Date.now()
+    return remaining > 0 ? remaining : -2
+  }
+
+  async eval(script: string, numKeys: number, ...args: string[]): Promise<any> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    // Simple implementation of the release lock script
+    if (script.includes('redis.call("get"') && script.includes('redis.call("del"')) {
+      const key = args[0]
+      const value = args[1]
+      const current = await this.get(key)
+      if (current === value) {
+        return await this.del(key)
+      }
+      return 0
+    }
+    return 0
+  }
+
+  async flushdb(): Promise<string> {
+    if (this.shouldReject) {
+      throw new Error('Mock Redis connection error')
+    }
+
+    this.store.clear()
+    return 'OK'
+  }
+
+  async quit(): Promise<string> {
+    this.isConnected = false
+    return 'OK'
+  }
+}
+
+/**
+ * Try to create a real Redis connection, fall back to mock if Redis is not available
+ */
+async function createRedisClient(): Promise<{ redis: Redis | MockRedis; isMock: boolean }> {
+  // First try to connect to real Redis
+  try {
+    const redis = new Redis({
       host: 'localhost',
       port: 6379,
-      db: testDb,
-      maxRetriesPerRequest: 1
+      db: 15, // Use Redis DB 15 for tests
+      maxRetriesPerRequest: 1,
+      lazyConnect: true
     })
+    // Test the connection
+    await redis.ping()
+    await redis.flushdb() // Clear test database
+    
+    return { redis, isMock: false }
+  } catch (error) {
+    // If real Redis is not available, use mock
+    console.warn('Redis not available, using mock Redis for tests:', (error as Error).message)
+    return { redis: new MockRedis(), isMock: true }
+  }
+}
+
+describe('file-lock', () => {
+  let redis: Redis | MockRedis
+  let isMock: boolean
+
+  beforeEach(async () => {
+    const client = await createRedisClient()
+    redis = client.redis
+    isMock = client.isMock
     await redis.flushdb() // Clear test database
   })
 
@@ -25,7 +157,7 @@ describe('file-lock', () => {
 
   describe('createFileLock', () => {
     it('should successfully acquire and release lock', async () => {
-      const withFileLock = createFileLock(redis)
+      const withFileLock = createFileLock(redis as Redis)
       const filePath = '/test/path/file.md'
       let executed = false
 
@@ -44,7 +176,7 @@ describe('file-lock', () => {
     })
 
     it('should prevent concurrent access to same file', async () => {
-      const withFileLock = createFileLock(redis, { retryDelay: 50 })
+      const withFileLock = createFileLock(redis as Redis, { retryDelay: 50 })
       const filePath = '/test/concurrent/file.md'
       const executionOrder: number[] = []
 
@@ -73,7 +205,7 @@ describe('file-lock', () => {
 
     it('should timeout if lock cannot be acquired', async () => {
       const shortTimeout = 100
-      const withFileLock = createFileLock(redis, { 
+      const withFileLock = createFileLock(redis as Redis, { 
         timeout: shortTimeout,
         retryDelay: 25
       })
@@ -97,7 +229,7 @@ describe('file-lock', () => {
     })
 
     it('should release lock even when function throws exception', async () => {
-      const withFileLock = createFileLock(redis)
+      const withFileLock = createFileLock(redis as Redis)
       const filePath = '/test/exception/file.md'
       const error = new Error('Test exception')
 
@@ -118,7 +250,7 @@ describe('file-lock', () => {
     })
 
     it('should handle different file paths independently', async () => {
-      const withFileLock = createFileLock(redis)
+      const withFileLock = createFileLock(redis as Redis)
       const file1 = '/test/independent/file1.md'
       const file2 = '/test/independent/file2.md'
       const results: string[] = []
@@ -146,7 +278,7 @@ describe('file-lock', () => {
 
     it('should use custom lock expiration', async () => {
       const lockExpiration = 200
-      const withFileLock = createFileLock(redis, { lockExpiration })
+      const withFileLock = createFileLock(redis as Redis, { lockExpiration })
       const filePath = '/test/expiration/file.md'
 
       await withFileLock(filePath, async () => {
@@ -160,25 +292,18 @@ describe('file-lock', () => {
     })
 
     it('should handle Redis connection errors gracefully', async () => {
-      // Create a Redis client with invalid config to simulate connection errors
-      const badRedis = new Redis({
-        host: 'nonexistent.host',
-        port: 6379,
-        db: testDb,
-        maxRetriesPerRequest: 0 // Don't retry
-      })
+      // Create a Redis client that simulates connection errors
+      const badRedis = new MockRedis(true) // shouldReject = true
 
-      const withFileLock = createFileLock(badRedis, { timeout: 1000 })
+      const withFileLock = createFileLock(badRedis as unknown as Redis, { timeout: 1000 })
 
       await expect(
         withFileLock('/test/error/file.md', async () => 'should not reach here')
       ).rejects.toThrow()
-
-      await badRedis.quit()
     })
 
     it('should work with nested locks on different files', async () => {
-      const withFileLock = createFileLock(redis)
+      const withFileLock = createFileLock(redis as Redis)
       const file1 = '/test/nested/file1.md'
       const file2 = '/test/nested/file2.md'
 
@@ -190,11 +315,34 @@ describe('file-lock', () => {
 
       expect(result).toBe('nested success')
     })
+
+    it('should work in environment without Redis when using mock', async () => {
+      // This test ensures our mock implementation works correctly
+      if (isMock) {
+        const mockRedis = new MockRedis()
+        const withFileLock = createFileLock(mockRedis as unknown as Redis)
+        
+        const result = await withFileLock('/test/mock/file.md', async () => {
+          return 'mock success'
+        })
+        
+        expect(result).toBe('mock success')
+      } else {
+        // If real Redis is available, still test the functionality
+        const withFileLock = createFileLock(redis as Redis)
+        
+        const result = await withFileLock('/test/real/file.md', async () => {
+          return 'real success'
+        })
+        
+        expect(result).toBe('real success')
+      }
+    })
   })
 
   describe('lock key format', () => {
     it('should use correct lock key format', async () => {
-      const withFileLock = createFileLock(redis, { lockExpiration: 5000 })
+      const withFileLock = createFileLock(redis as Redis, { lockExpiration: 5000 })
       const filePath = '/some/deeply/nested/path/file.md'
 
       await withFileLock(filePath, async () => {
@@ -205,7 +353,7 @@ describe('file-lock', () => {
     })
 
     it('should handle special characters in file paths', async () => {
-      const withFileLock = createFileLock(redis)
+      const withFileLock = createFileLock(redis as Redis)
       const filePath = '/test/file with spaces & special-chars.md'
 
       const result = await withFileLock(filePath, async () => 'success with special chars')
