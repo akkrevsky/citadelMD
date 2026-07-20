@@ -1,9 +1,22 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import LoginPage from './pages/LoginPage'
+import DashboardPage from './pages/DashboardPage'
+import HomePage from './pages/HomePage'
+import AdminUsersPage from './pages/AdminUsersPage'
+import ProfilePage from './pages/ProfilePage'
+import './styles.css'
+
 export default function App() {
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '2rem' }}>
-      <h1>citadelMD</h1>
-      <p>Self-hosted collaborative Markdown editor.</p>
-      <p>Phase 0 scaffolding placeholder.</p>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<DashboardPage />}>
+          <Route index element={<HomePage />} />
+          <Route path="admin/users" element={<AdminUsersPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
