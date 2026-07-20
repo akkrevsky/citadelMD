@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
 
 export default function DashboardPage() {
@@ -51,9 +51,19 @@ export default function DashboardPage() {
         <div
           key={item.id}
           className="tree-item document"
-          style={{ paddingLeft: `${1.5 + depth * 1}rem` }}
+          style={{ paddingLeft: `${1 + depth * 1}rem` }}
         >
-          {item.name}
+          <div className="document-info">
+            <span className="document-name">{item.name}</span>
+            <div className="document-actions">
+              <Link 
+                to={`/documents/${item.id}/edit`}
+                className="document-edit-link"
+              >
+                Edit
+              </Link>
+            </div>
+          </div>
         </div>
       )
     })
