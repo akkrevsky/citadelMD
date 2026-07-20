@@ -42,7 +42,10 @@ function generateApiKey(): string {
   return crypto.randomBytes(32).toString('hex')
 }
 
-function toUserResponse(user: User): UserResponse {
+function toUserResponse(
+  user: User,
+  options: { revealApiKey?: boolean } = {}
+): UserResponse {
   return {
     id: user.id,
     login: user.login,
@@ -50,7 +53,9 @@ function toUserResponse(user: User): UserResponse {
     displayName: user.displayName,
     gitName: user.gitName,
     gitEmail: user.gitEmail,
-    apiKey: user.apiKey,
+    // Do not leak the API key in bulk lookups; reveal only on explicit
+    // create / regenerate where the caller legitimately needs the secret.
+    apiKey: options.revealApiKey ? user.apiKey : null,
     active: user.active,
     createdAt: user.createdAt,
   }
@@ -92,7 +97,7 @@ export async function createUser(input: CreateUserInput): Promise<UserResponse> 
     },
   })
 
-  return toUserResponse(user)
+  return toUserResponse(user, { revealApiKey: true })
 }
 
 export async function getUserById(id: string): Promise<UserResponse | null> {
@@ -135,7 +140,7 @@ export async function updateUser(
     data: updateData,
   })
 
-  return toUserResponse(user)
+  return toUserResponse(user, { revealApiKey: input.regenerateApiKey === true })
 }
 
 export async function deactivateUser(id: string): Promise<void> {
