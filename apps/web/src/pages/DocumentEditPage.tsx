@@ -2,15 +2,25 @@ import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react
 import { useParams, useNavigate } from 'react-router-dom'
 import { CollaborativeEditor } from '../components/CollaborativeEditor.js'
 import { MarkdownPreview } from '../components/MarkdownPreview.js'
+import { EditorToolbar, type ViewMode } from '../components/EditorToolbar.js'
+import { StatusBar } from '../components/StatusBar.js'
+import { TabBar } from '../components/TabBar.js'
 import { UploadIndicator } from '../components/UploadIndicator.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
+import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
+import '../styles/editor.css'
+import '../styles/preview.css'
+import '../styles/toolbar.css'
+import '../styles/statusbar.css'
+import '../styles/tabbar.css'
 
 const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
 
 export function DocumentEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useTheme()
   const [doc, setDoc] = useState<Document | null>(null)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
@@ -19,9 +29,13 @@ export function DocumentEditPage() {
   const [isCommitting, setIsCommitting] = useState(false)
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewContent, setPreviewContent] = useState('')
   const [showExcalidraw, setShowExcalidraw] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [isConnected, setIsConnected] = useState(false)
+
+  // Document stats
+  const [stats, setStats] = useState({ words: 0, chars: 0, lines: 0 })
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   function handleInsertAtCursor(text: string): void {
@@ -46,14 +60,11 @@ export function DocumentEditPage() {
     try {
       setLoading(true)
 
-      // Get document metadata
       const docResponse = await api.getDocument(id!)
       setDoc(docResponse)
 
-      // Get document content
       const contentResponse = await api.exportDocument(id!)
       setContent(contentResponse)
-      setPreviewContent(contentResponse)
 
     } catch (error) {
       console.error('Failed to load document:', error)
@@ -66,10 +77,72 @@ export function DocumentEditPage() {
   const handleContentChange = useCallback((newContent: string) => {
     setHasChanges(content !== newContent)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setPreviewContent(newContent)
-    }, 300)
   }, [content])
+
+  const handleFormat = useCallback((type: string) => {
+    // Simple format insertions (will be refined with actual CM6 commands later)
+    switch (type) {
+      case 'undo':
+        document.execCommand('undo')
+        break
+      case 'redo':
+        document.execCommand('redo')
+        break
+      case 'bold':
+        handleInsertAtCursor('**bold text**')
+        break
+      case 'italic':
+        handleInsertAtCursor('*italic text*')
+        break
+      case 'strikethrough':
+        handleInsertAtCursor('~~strikethrough~~')
+        break
+      case 'h1':
+        handleInsertAtCursor('# Heading 1\n\n')
+        break
+      case 'h2':
+        handleInsertAtCursor('## Heading 2\n\n')
+        break
+      case 'h3':
+        handleInsertAtCursor('### Heading 3\n\n')
+        break
+      case 'code':
+        handleInsertAtCursor('`code`')
+        break
+      case 'quote':
+        handleInsertAtCursor('> quote\n\n')
+        break
+      case 'ul':
+        handleInsertAtCursor('- item\n- item\n- item\n\n')
+        break
+      case 'ol':
+        handleInsertAtCursor('1. item\n2. item\n3. item\n\n')
+        break
+      case 'task':
+        handleInsertAtCursor('- [ ] task\n- [ ] task\n- [ ] task\n\n')
+        break
+      case 'link':
+        handleInsertAtCursor('[link text](https://)')
+        break
+      case 'image':
+        handleInsertAtCursor('![alt text](https://)')
+        break
+      case 'table':
+        handleInsertAtCursor('| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n\n')
+        break
+      case 'hr':
+        handleInsertAtCursor('\n---\n\n')
+        break
+    }
+  }, [handleInsertAtCursor])
+
+  const handleCursorChange = useCallback((line: number, col: number) => {
+    setCursorPos({ line, col })
+  }, [])
+
+  const handleDocStats = useCallback((s: { words: number; chars: number; lines: number }) => {
+    setStats(s)
+  }, [])
 
   const handleExcalidrawSave = (svgDataUrl: string) => {
     const insertText = '```excalidraw\n' + svgDataUrl + '\n```\n\n'
@@ -85,13 +158,10 @@ export function DocumentEditPage() {
 
     try {
       setIsCommitting(true)
-
       await api.commitDocument(id!, commitMessage)
-
       setCommitMessage('')
       setHasChanges(false)
       alert('Changes committed successfully!')
-
     } catch (error) {
       console.error('Commit failed:', error)
       if (error instanceof Error) {
@@ -109,15 +179,10 @@ export function DocumentEditPage() {
 
     try {
       setIsDiscarding(true)
-
       await api.discardDocument(id!)
-
       setHasChanges(false)
       alert('Changes discarded successfully!')
-
-      // Reload content
       await loadDocument()
-
     } catch (error) {
       console.error('Discard failed:', error)
       if (error instanceof Error) {
@@ -154,6 +219,8 @@ export function DocumentEditPage() {
     )
   }
 
+  const readTime = Math.max(1, Math.round(stats.words / 200))
+
   return (
     <div
       className="document-edit-page"
@@ -161,6 +228,7 @@ export function DocumentEditPage() {
       onDrop={handleDrop as unknown as React.DragEventHandler}
       onDragOver={handleDragOver as unknown as React.DragEventHandler}
     >
+      {/* Header with document info and commit controls */}
       <div className="document-header">
         <div className="document-info">
           <h1>{doc.title}</h1>
@@ -169,7 +237,7 @@ export function DocumentEditPage() {
 
         <div className="document-actions">
           {hasChanges && (
-            <span className="changes-indicator">● Unsaved changes</span>
+            <span className="changes-indicator">Unsaved changes</span>
           )}
 
           <div className="commit-section">
@@ -193,54 +261,120 @@ export function DocumentEditPage() {
             disabled={isDiscarding || !hasChanges}
             className="discard-button"
           >
-            {isDiscarding ? 'Discarding...' : 'Discard Changes'}
+            {isDiscarding ? 'Discarding...' : 'Discard'}
           </button>
 
           <button onClick={() => navigate('/')}>
-          Back to Dashboard
+            Dashboard
           </button>
         </div>
       </div>
 
-      <div className="editor-toolbar">
+      {/* Tab bar */}
+      <TabBar
+        tabs={[{ id: id!, label: doc.title, path: doc.filePath }]}
+        activeTabId={id!}
+        onTabSelect={() => {}}
+        onTabClose={() => navigate('/dashboard')}
+      />
+
+      {/* Editor toolbar */}
+      <EditorToolbar
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onFormat={handleFormat}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+
+      {/* Attach file button bar */}
+      <div className="editor-toolbar" style={{ borderTop: 'none', paddingTop: 0, paddingBottom: '4px' }}>
         <UploadIndicator {...uploadState} />
-        <button onClick={() => window.document.getElementById('file-input')?.click()}>
-          Attach File
-        </button>
-        <input
-          id="file-input"
-          type="file"
-          style={{ display: 'none' }}
-          onChange={async (e) => {
-            const file = e.target.files?.[0]
-            if (file) await uploadFile(file)
-            e.target.value = ''
-          }}
-          accept="image/*,.pdf,.txt,.md"
-        />
-        <button onClick={() => setShowExcalidraw(true)}>Draw Diagram</button>
-        <button onClick={() => setShowPreview(!showPreview)}>
-          {showPreview ? 'Hide Preview' : 'Show Preview'}
-        </button>
+        <div className="toolbar-group">
+          <button
+            className="toolbar-btn text-btn"
+            onClick={() => window.document.getElementById('file-input')?.click()}
+            title="Attach file"
+          >
+            Attach File
+          </button>
+          <input
+            id="file-input"
+            type="file"
+            style={{ display: 'none' }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (file) await uploadFile(file)
+              e.target.value = ''
+            }}
+            accept="image/*,.pdf,.txt,.md"
+          />
+          <button
+            className="toolbar-btn text-btn"
+            onClick={() => setShowExcalidraw(true)}
+            title="Draw diagram"
+          >
+            Draw Diagram
+          </button>
+        </div>
       </div>
 
+      {/* Editor section — split view */}
       <div className="editor-section">
-        <div className="editor-with-preview">
-          <div className="code-editor-pane">
+        {viewMode === 'source' && (
+          <div className="code-editor-pane full-width">
             <CollaborativeEditor
               documentId={id!}
               initialContent={content}
               onContentChange={handleContentChange}
+              onCursorChange={handleCursorChange}
+              onDocStats={handleDocStats}
             />
           </div>
-          {showPreview && (
-            <div className="preview-pane">
-              <MarkdownPreview content={previewContent} />
+        )}
+
+        {viewMode === 'split' && (
+          <div className="editor-with-preview">
+            <div className="code-editor-pane">
+              <CollaborativeEditor
+                documentId={id!}
+                initialContent={content}
+                onContentChange={handleContentChange}
+                onCursorChange={handleCursorChange}
+                onDocStats={handleDocStats}
+              />
             </div>
-          )}
-        </div>
+            <div className="preview-pane">
+              <div className="preview-wrapper">
+                <MarkdownPreview content={content} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'preview' && (
+          <div className="preview-pane full-width">
+            <div className="preview-wrapper">
+              <MarkdownPreview content={content} />
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Status bar */}
+      <StatusBar
+        words={stats.words}
+        chars={stats.chars}
+        lines={stats.lines}
+        cursorLine={cursorPos.line}
+        cursorCol={cursorPos.col}
+        fileName={doc.title + '.md'}
+        isConnected={false}
+        connectionStatus="disconnected"
+        readTime={readTime}
+      />
+
+      {/* Excalidraw modal */}
       {showExcalidraw && (
         <div className="modal-overlay" onClick={() => setShowExcalidraw(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
