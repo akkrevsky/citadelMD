@@ -1,13 +1,26 @@
 import Fastify, { type FastifyInstance } from 'fastify'
+import cookie from '@fastify/cookie'
 import { ensureGitRepo } from './services/git-init.js'
+import { authRoutes } from './routes/auth.js'
+import { userRoutes } from './routes/users.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
 
+  // Register plugins
+  await app.register(cookie)
+
+  // Health check
   app.get('/api/health', async () => {
     const checks: Record<string, string> = { git: 'ok' }
     return { status: 'ok', version: '0.0.0', checks }
   })
+
+  // Auth routes
+  await app.register(authRoutes)
+
+  // User routes (admin-only)
+  await app.register(userRoutes)
 
   return app
 }
