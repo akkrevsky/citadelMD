@@ -210,7 +210,6 @@ export async function createFolder(input: CreateFolderInput) {
 
   const git = new GitService(repoPath)
   await git.commit(
-    `${gitPath}/.gitkeep`,
     `Create folder ${name} [user:${createdBy?.login ?? 'unknown'}]`,
     { name: authorName, email: authorEmail },
   )
@@ -258,7 +257,7 @@ export async function renameFolder(folderId: string, input: UpdateFolderInput, u
   const git = new GitService(repoPath)
 
   // git mv old -> new
-  await git.rename(oldGitPath, newGitPath)
+  await git.move(oldGitPath, newGitPath)
 
   // Commit
   const user = await prisma.user.findUnique({
@@ -269,7 +268,6 @@ export async function renameFolder(folderId: string, input: UpdateFolderInput, u
   const authorEmail = user?.gitEmail ?? `${user?.login ?? 'unknown'}@mdcollab.local`
 
   await git.commit(
-    newGitPath,
     `Rename folder ${folder.name} -> ${newName} [user:${user?.login ?? 'unknown'}]`,
     { name: authorName, email: authorEmail },
   )
@@ -358,7 +356,6 @@ export async function deleteFolder(folderId: string, userId: string) {
   const authorEmail = user?.gitEmail ?? `${user?.login ?? 'unknown'}@mdcollab.local`
 
   await git.commit(
-    folder.gitPath,
     `Delete folder ${folder.name} [user:${user?.login ?? 'unknown'}]`,
     { name: authorName, email: authorEmail },
   )
