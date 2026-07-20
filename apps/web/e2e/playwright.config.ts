@@ -12,12 +12,26 @@ export default defineConfig({
     baseURL: 'http://localhost:8081',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // Handle potential browser compatibility issues
+    ignoreHTTPSErrors: true,
+    video: 'retain-on-failure',
   },
 
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        // Add fallback options for WSL environments
+        launchOptions: {
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+          ]
+        }
+      },
     },
   ],
 
@@ -25,5 +39,6 @@ export default defineConfig({
     command: 'echo "Web server should be running on localhost:8081"',
     url: 'http://localhost:8081',
     reuseExistingServer: true,
+    timeout: 120 * 1000,
   },
 })
