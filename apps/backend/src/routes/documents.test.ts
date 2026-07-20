@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
 import type { UserRole } from '@citadelmd/shared'
+import { assertFolderPermission } from '../services/authz.js'
 
 // Mock the document service 
 const mockDocumentService = {
@@ -29,6 +30,7 @@ vi.mock('../services/authz.js', () => ({
   assertFolderPermission: vi.fn().mockResolvedValue(undefined),
   getDocumentFolderId: vi.fn().mockResolvedValue('folder-test'),
 }))
+const mockAssertFolderPermission = vi.mocked(assertFolderPermission)
 
 // Mock the auth service to return a valid token
 vi.mock('../services/auth.service.js', () => ({
@@ -52,6 +54,8 @@ describe('Document Routes', () => {
     
     // Reset all mocks
     Object.values(mockDocumentService).forEach((mock: any) => mock.mockReset())
+    mockAssertFolderPermission.mockReset()
+    mockAssertFolderPermission.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -216,6 +220,23 @@ describe('Document Routes', () => {
       })
 
       expect(response.statusCode).toBe(204)
+    })
+  })
+
+  describe('permission enforcement', () => {
+    it('returns 403 when assertFolderPermission denies access', async () => {
+      mockDocumentService.getDocument.mockResolvedValue({ id: 'doc-123', folderId: 'folder-1' })
+      mockAssertFolderPermission.mockRejectedValueOnce(
+        Object.assign(new Error('Insufficient folder permission'), { statusCode: 403 }),
+      )
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(403)
     })
   })
 })
