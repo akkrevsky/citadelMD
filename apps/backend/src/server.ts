@@ -4,6 +4,7 @@ import { ensureGitRepo } from './services/git-init.js'
 import { authRoutes } from './routes/auth.js'
 import { userRoutes } from './routes/users.js'
 import { folderRoutes } from './routes/folders.js'
+import { documentRoutes } from './routes/documents.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
@@ -25,6 +26,9 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Folder routes
   await app.register(folderRoutes)
+
+  // Document routes
+  await app.register(documentRoutes)
 
   return app
 }
