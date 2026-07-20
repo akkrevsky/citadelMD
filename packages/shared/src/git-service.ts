@@ -144,10 +144,6 @@ export class GitService {
     await this.git.mv(oldPath, newPath)
   }
 
-  async mkdir(dirPath: string): Promise<void> {
-    await this.git.raw(['commit', '--allow-empty', '-m', `mkdir: ${dirPath}`])
-  }
-
   async remove(filePath: string): Promise<void> {
     await this.git.rm([filePath, '-r'])
   }

@@ -567,11 +567,6 @@ export class DocumentService {
   }
 }
 
-// Export class and factory function instead of singleton for testability
-export const documentService = {
-  createInstance: () => new DocumentService()
-}
-
 // Create default instance only when needed and env is available
 export function getDocumentService(): DocumentService {
   return new DocumentService()
