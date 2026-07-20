@@ -53,17 +53,12 @@ export default function DashboardPage() {
           className="tree-item document"
           style={{ paddingLeft: `${1 + depth * 1}rem` }}
         >
-          <div className="document-info">
-            <span className="document-name">{item.name}</span>
-            <div className="document-actions">
-              <Link 
-                to={`/documents/${item.id}/edit`}
-                className="document-edit-link"
-              >
-                Edit
-              </Link>
-            </div>
-          </div>
+          <Link
+            to={`/documents/${item.id}/edit`}
+            className="document-link"
+          >
+            {item.name}
+          </Link>
         </div>
       )
     })
