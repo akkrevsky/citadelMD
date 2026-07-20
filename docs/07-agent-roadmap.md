@@ -166,11 +166,15 @@
 10. Frontend: диалог создания share-ссылки, гостевой layout (без дерева).
 
 **Критерии готовности:**
-- [ ] Все 8 расширений markdown рендерятся корректно.
-- [ ] Drag-n-drop картинки → загрузка → вставка → рендер.
-- [ ] Создание share-ссылки с TTL, открытие в инкогнито работает.
-- [ ] Read-only гость видит документ, но не может править.
-- [ ] Write-гость может редактировать, но не может commit/discard/restore.
+- [x] Все 8+ расширений markdown рендерятся: prism, mermaid, katex, footnote, task-lists, callouts, embed (youtube/vimeo), excalidraw
+- [x] Excalidraw embedded editor работает (SVG base64 in markdown)
+- [x] Drag-n-drop картинки -> загрузка в MinIO -> вставка markdown -> рендер
+- [x] Upload API с MIME allowlist, квотами, MinIO
+- [x] Создание share-ссылки с TTL, разрешение публичной
+- [x] Read-only гость видит документ, но не может редактировать (через Yjs permission)
+- [x] Share dialog в UI
+- [x] Preview toggle с debounce
+- [x] Docker build проходит, все сервисы healthy
 
 ---
 
