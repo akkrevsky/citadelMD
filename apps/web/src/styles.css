@@ -411,6 +411,14 @@ select:focus {
   overflow: hidden;
 }
 
+/* Full-page editor inside dashboard layout */
+.full-page-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .main-header {
   height: var(--header-height);
   display: flex;

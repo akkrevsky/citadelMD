@@ -38,6 +38,10 @@ export function DocumentEditPage() {
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
+  // Preview content - debounced to avoid re-render on every keystroke
+  const [previewContent, setPreviewContent] = useState('')
+  const previewDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+
   function handleInsertAtCursor(text: string): void {
     window.document.dispatchEvent(new CustomEvent('insert-at-cursor', { detail: { text } }))
   }
@@ -74,9 +78,20 @@ export function DocumentEditPage() {
     }
   }
 
+  // Track content changes for save detection and preview
+  const contentRef = useRef(content)
   const handleContentChange = useCallback((newContent: string) => {
-    setHasChanges(content !== newContent)
+    contentRef.current = newContent
+    if (contentRef.current !== content) {
+      setHasChanges(true)
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    // Debounce preview update (300ms) to avoid re-render on every keystroke
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+    previewDebounceRef.current = setTimeout(() => {
+      setPreviewContent(newContent)
+    }, 300)
   }, [content])
 
   const handleFormat = useCallback((type: string) => {
@@ -339,26 +354,47 @@ export function DocumentEditPage() {
         </div>
       </div>
 
-      {/* Editor section — always render editor, switch visibility via CSS */}
+      {/* Editor section */}
       <div className="editor-section">
-        <div
-          className={`code-editor-pane${viewMode === 'source' ? ' full-width' : ''}`}
-          style={{ display: viewMode === 'preview' ? 'none' : undefined }}
-        >
-          <CollaborativeEditor
-            documentId={id!}
-            initialContent={content}
-            onContentChange={handleContentChange}
-            onCursorChange={handleCursorChange}
-            onDocStats={handleDocStats}
-            onConnectionChange={(status) => {
-              setIsConnected(status === 'connected')
-            }}
-          />
-        </div>
+        {viewMode === 'source' && (
+          <div className="code-editor-pane full-width">
+            <CollaborativeEditor
+              documentId={id!}
+              initialContent={content}
+              onContentChange={handleContentChange}
+              onCursorChange={handleCursorChange}
+              onDocStats={handleDocStats}
+              onConnectionChange={(status) => {
+                setIsConnected(status === 'connected')
+              }}
+            />
+          </div>
+        )}
 
-        {viewMode !== 'source' && (
-          <div className={`preview-pane${viewMode === 'preview' ? ' full-width' : ''}`}>
+        {viewMode === 'split' && (
+          <div className="editor-with-preview">
+            <div className="code-editor-pane">
+              <CollaborativeEditor
+                documentId={id!}
+                initialContent={content}
+                onContentChange={handleContentChange}
+                onCursorChange={handleCursorChange}
+                onDocStats={handleDocStats}
+                onConnectionChange={(status) => {
+                  setIsConnected(status === 'connected')
+                }}
+              />
+            </div>
+            <div className="preview-pane">
+              <div className="preview-wrapper">
+                <MarkdownPreview content={previewContent || content} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'preview' && (
+          <div className="preview-pane full-width">
             <div className="preview-wrapper">
               <MarkdownPreview content={content} />
             </div>

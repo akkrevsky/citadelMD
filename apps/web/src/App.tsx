@@ -20,7 +20,7 @@ export default function App() {
             <Route index element={<HomePage />} />
             <Route path="admin/users" element={<AdminUsersPage />} />
             <Route path="profile" element={<ProfilePage />} />
-            <Route path="documents/:id/edit" element={<DocumentEditPage />} />
+            <Route path="documents/:id/edit" element={<div className="full-page-editor"><DocumentEditPage /></div>} />
           </Route>
         </Routes>
       </BrowserRouter>
