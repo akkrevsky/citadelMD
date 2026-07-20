@@ -29,7 +29,8 @@ export function getMarkdownIt(): MarkdownIt {
 export function renderMarkdown(text: string): string {
   try {
     return DOMPurify.sanitize(getMarkdownIt().render(text), PURIFY_CONFIG)
-  } catch {
+  } catch (error) {
+    console.warn('[markdown] failed to render:', error)
     return '<p>Failed to render markdown</p>'
   }
 }
