@@ -11,6 +11,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "simple-git": "^3.25.0"
+    "simple-git": "^3.25.0",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0"
   }
 }
