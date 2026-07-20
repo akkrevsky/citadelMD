@@ -15,7 +15,8 @@
     "@citadelmd/shared": "workspace:*",
     "fastify": "^4.28.0",
     "yjs": "^13.6.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "tsx": "^4.16.0",
