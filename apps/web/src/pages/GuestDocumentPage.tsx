@@ -10,7 +10,7 @@ export function GuestDocumentPage() {
 
   useEffect(() => {
     if (!token) return
-    fetch(`/api/shares/${token}`)
+    fetch(`/api/shares/${token}/document`)
       .then(r => r.json())
       .then(data => {
         if (data.document) {

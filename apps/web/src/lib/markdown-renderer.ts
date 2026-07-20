@@ -1,10 +1,5 @@
 import MarkdownIt from 'markdown-it'
-import prism from 'markdown-it-prism'
-import mermaidPlugin from 'markdown-it-mermaid'
-import taskLists from 'markdown-it-task-lists'
-import container from 'markdown-it-container'
 import DOMPurify from 'dompurify'
-import { excalidrawBlockPlugin } from '../components/ExcalidrawPlugin.js'
 import type { Config as DOMPurifyConfig } from 'dompurify'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
@@ -23,38 +18,11 @@ const PURIFY_CONFIG: DOMPurifyConfig = {
   ALLOW_DATA_ATTR: false,
 }
 
-function embedPlugin(md: MarkdownIt): void {
-  const originalRender = md.renderer.rules.text
-  md.renderer.rules.text = (tokens: any[], idx: number) => {
-    const text = tokens[idx].content
-    const ytMatch = text.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-    if (ytMatch) return `<div class="embed-container"><iframe src="https://www.youtube.com/embed/${ytMatch[1]}" allowfullscreen></iframe></div>`
-    const vimeoMatch = text.match(/(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)/)
-    if (vimeoMatch) return `<div class="embed-container"><iframe src="https://player.vimeo.com/video/${vimeoMatch[1]}" allowfullscreen></iframe></div>`
-    return originalRender ? originalRender(tokens, idx, {} as any, {} as any, {} as any) : md.utils.escapeHtml(text)
-  }
-}
-
-function createCalloutContainer(md: MarkdownIt, type: string): void {
-  md.use(container, type, {
-    render(tokens: any[], idx: number) {
-      if (tokens[idx].nesting === 1) return `<div class="callout callout-${type}">\n`
-      return '</div>\n'
-    },
-  })
-}
-
 let md: MarkdownIt | null = null
 
 export function getMarkdownIt(): MarkdownIt {
   if (md) return md
   md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false })
-  md.use(prism).use(mermaidPlugin).use(taskLists, { enabled: true, label: true })
-  ;['warning', 'info', 'danger', 'tip', 'note'].forEach((t: string) => createCalloutContainer(md!, t))
-
-  embedPlugin(md)
-  excalidrawBlockPlugin(md)
-
   return md
 }
 
