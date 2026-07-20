@@ -56,17 +56,21 @@ export class YjsWebSocketServer {
           return
         }
 
-        // TODO: Validate JWT token in Phase 3+
-        // For now, accept all connections with valid docId format
-        
-        // Validate share token for guest connections
+        // Authorization: a share token (guest) OR an authenticated session
+        // cookie (browser user). Connections with neither (or an invalid one)
+        // are rejected below - this closes the previous anonymous-write hole.
         const permissionPromise = token
           ? this.validateShareToken(token)
-          : Promise.resolve<ConnectionInfo['permission']>(undefined)
-        
+          : this.validateSession(request.headers.cookie, effectiveDocId)
+
         permissionPromise.then((permission) => {
+          if (!permission) {
+            ws.close(1008, 'Authentication required')
+            return
+          }
+
           if (permission === 'READ' || permission === 'WRITE') {
-            console.log(`[YjsWS] Guest connection with ${permission} permission for document ${effectiveDocId}`)
+            console.log(`[YjsWS] Connection with ${permission} permission for document ${effectiveDocId}`)
           }
           
           const connectionId = this.generateConnectionId()
@@ -253,6 +257,36 @@ export class YjsWebSocketServer {
     } catch (error) {
       console.error(`[YjsWS] Error validating share token:`, error)
       return undefined
+    }
+  }
+
+  /**
+   * Validate an authenticated browser session by forwarding the cookie to the
+   * backend's /api/documents/:id/ws-permission endpoint. Returns the user's
+   * effective WS permission on the document (READ for VIEW, WRITE for
+   * EDIT/ADMIN), or null if unauthenticated / no access.
+   */
+  private async validateSession(
+    cookie: string | undefined,
+    docId: string
+  ): Promise<ConnectionInfo['permission'] | null> {
+    if (!cookie) return null
+    // docId is 'doc-<uuid>'; the backend document id is the bare uuid
+    const docUuid = docId.startsWith('doc-') ? docId.slice(4) : docId
+    try {
+      const url = `${BACKEND_API_URL}/api/documents/${encodeURIComponent(docUuid)}/ws-permission`
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const response = await fetch(url, { headers: { cookie }, signal: controller.signal })
+      clearTimeout(timeout)
+      if (!response.ok) return null
+      const body = (await response.json()) as { permission?: string }
+      if (body.permission === 'EDIT') return 'WRITE'
+      if (body.permission === 'VIEW') return 'READ'
+      return null
+    } catch (error) {
+      console.error('[YjsWS] Error validating session:', error)
+      return null
     }
   }
 
