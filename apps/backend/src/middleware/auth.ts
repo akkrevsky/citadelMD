@@ -45,6 +45,9 @@ export async function authMiddleware(
   }
 }
 
+/** Alias for authMiddleware */
+export const verifyAuth = authMiddleware
+
 export function requireRole(...roles: UserRole[]) {
   return async (
     request: FastifyRequest,

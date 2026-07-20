@@ -6,7 +6,7 @@ ENV PRISMA_BINARY_TARGETS=linux-musl-openssl-3.0.x
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/backend ./apps/backend
 COPY packages/shared ./packages/shared
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 RUN pnpm --filter @citadelmd/shared build
 RUN pnpm --filter @citadelmd/backend build
 

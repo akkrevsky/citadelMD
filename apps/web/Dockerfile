@@ -4,7 +4,7 @@ RUN npm install -g pnpm
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages/shared ./packages/shared
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --no-frozen-lockfile --filter @citadelmd/web --filter @citadelmd/shared 2>&1 || pnpm install --no-frozen-lockfile 2>&1
 RUN pnpm --filter @citadelmd/web build
 
 FROM nginx:alpine
