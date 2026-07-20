@@ -30,6 +30,13 @@ export interface TreeItem {
   children?: TreeItem[]
 }
 
+export interface Document {
+  id: string
+  title: string
+  filePath: string
+  updatedAt: string
+}
+
 class ApiClient {
   private baseUrl = '/api'
 
@@ -122,6 +129,28 @@ class ApiClient {
     } catch {
       return []
     }
+  }
+
+  // Documents
+  getDocument(id: string) {
+    return this.request<Document>(`/documents/${id}`)
+  }
+
+  exportDocument(id: string) {
+    return this.request<string>(`/documents/${id}/export`)
+  }
+
+  commitDocument(id: string, message: string) {
+    return this.request<void>(`/documents/${id}/commit`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    })
+  }
+
+  discardDocument(id: string) {
+    return this.request<void>(`/documents/${id}/discard`, {
+      method: 'POST',
+    })
   }
 }
 
