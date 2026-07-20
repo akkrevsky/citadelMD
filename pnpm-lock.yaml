@@ -167,6 +167,9 @@ importers:
 
   apps/yjs-server:
     dependencies:
+      '@citadelmd/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -176,6 +179,9 @@ importers:
       fastify:
         specifier: ^4.24.3
         version: 4.29.1
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.11.1(supports-color@7.2.0)
       ws:
         specifier: ^8.16.0
         version: 8.21.1
@@ -183,9 +189,6 @@ importers:
         specifier: ^13.6.10
         version: 13.6.31
     devDependencies:
-      '@citadelmd/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.43

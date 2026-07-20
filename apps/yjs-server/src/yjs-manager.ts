@@ -3,6 +3,8 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { dirname } from 'path'
 import { mkdirSync } from 'fs'
 import fastDiff from 'fast-diff'
+import { Redis } from 'ioredis'
+import { createTryFileLock, type FileLockReleaser } from '@citadelmd/shared'
 
 export interface DocumentSession {
   ydoc: Y.Doc
@@ -16,9 +18,18 @@ export class YjsManager {
   private documents = new Map<string, DocumentSession>()
   private readonly gitRepoPath: string
   private readonly autoSaveInterval = 5000 // 5 seconds
+  private readonly tryLock: (filePath: string) => Promise<FileLockReleaser | null>
 
   constructor(gitRepoPath = process.env.GIT_REPO_PATH || '/var/lib/md-collab/docs') {
     this.gitRepoPath = gitRepoPath
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+    const redis = new Redis(redisUrl)
+    redis.on('error', (err: Error) => console.error('[YjsManager] redis error:', err.message))
+    // Non-blocking lock on the SAME 'lock:file:<path>' key the backend uses.
+    // Auto-save skips its tick when a backend git op holds the lock; it must
+    // never wait, because /internal/flush and /internal/reload are called by
+    // the backend WHILE it holds the lock (waiting would deadlock).
+    this.tryLock = createTryFileLock(redis)
     console.log(`[YjsManager] Git repo path: ${this.gitRepoPath}`)
   }
 
@@ -105,20 +116,37 @@ export class YjsManager {
   }
   
   // Auto-save document to working tree
-  private autoSaveDocument(docId: string): void {
+  private async autoSaveDocument(docId: string): Promise<void> {
     const session = this.documents.get(docId)
     if (!session) return
-    
+
+    let releaser: FileLockReleaser | null = null
     try {
+      // Skip this tick if a backend git operation holds the lock; the content
+      // lives in the Yjs doc and will be written on the next tick.
+      releaser = await this.tryLock(session.filePath)
+      if (!releaser) {
+        console.log(`[YjsManager] Auto-save skipped for ${docId} (lock held)`)
+        return
+      }
       this.flushDocument(docId)
       console.log(`[YjsManager] Auto-saved document ${docId}`)
-      
-      // Reschedule if connections still exist
-      if (session.connections.size > 0) {
-        this.scheduleAutoSave(docId)
-      }
     } catch (error) {
       console.error(`[YjsManager] Auto-save failed for ${docId}:`, error)
+    } finally {
+      if (releaser) {
+        try {
+          await releaser()
+        } catch {
+          /* ignore release error */
+        }
+      }
+      // Always reschedule while connections exist (previously a single failed
+      // flush permanently stopped auto-save for the document).
+      const current = this.documents.get(docId)
+      if (current && current.connections.size > 0) {
+        this.scheduleAutoSave(docId)
+      }
     }
   }
   
