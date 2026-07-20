@@ -9,14 +9,15 @@
     "dev": "tsx --watch src/index.ts"
   },
   "dependencies": {
+    "@citadelmd/shared": "workspace:*",
     "fastify": "^4.24.3",
     "dotenv": "^16.4.5",
+    "ioredis": "^5.4.1",
     "yjs": "^13.6.10",
     "fast-diff": "^1.3.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "@citadelmd/shared": "workspace:*",
     "@types/node": "^20.10.0",
     "@types/ws": "^8.5.10",
     "tsx": "^4.6.2",
