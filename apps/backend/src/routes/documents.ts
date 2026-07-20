@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { getDocumentService } from '../services/document.service.js'
+import { assertFolderPermission, getDocumentFolderId } from '../services/authz.js'
 
 export async function documentRoutes(app: FastifyInstance): Promise<void> {
   // All document routes require authentication
@@ -28,7 +29,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      // TODO: Check folder permissions (to be implemented later)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       const document = await documentService.createDocument({
         folderId,
         title: title.trim(),
@@ -64,7 +65,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         })
       }
 
-      // TODO: Check document permissions (to be implemented later)
+      await assertFolderPermission(request.user!.sub, request.user!.role, document.folderId, 'VIEW')
       return reply.status(200).send(document)
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number }
@@ -86,7 +87,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         })
       }
 
-      // TODO: Check document permissions (to be implemented later)
+      await assertFolderPermission(request.user!.sub, request.user!.role, document.folderId, 'VIEW')
       const content = await documentService.getDocumentContent(id)
       if (content === null) {
         return reply.status(404).send({
@@ -125,7 +126,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       const document = await documentService.updateDocument(
         id,
         { title: title.trim() },
@@ -154,7 +156,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'ADMIN')
       await documentService.deleteDocument(id, request.user!.sub)
       return reply.status(204).send()
     } catch (err: unknown) {
@@ -186,7 +189,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       await documentService.commitDocument(id, message.trim(), request.user!.sub)
       return reply.status(200).send({ message: 'Changes committed successfully' })
     } catch (err: unknown) {
@@ -214,7 +218,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       await documentService.discardDocument(id)
       return reply.status(200).send({ message: 'Changes discarded successfully' })
     } catch (err: unknown) {
@@ -240,7 +245,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'VIEW')
       const diff = await documentService.getUncommittedDiff(id)
       if (diff === null) {
         return reply.status(404).send({
@@ -274,7 +280,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'VIEW')
       const revisions = await documentService.getDocumentRevisions(id, limitNum)
       return reply.status(200).send({ revisions })
     } catch (err: unknown) {
@@ -296,7 +303,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'VIEW')
       const content = await documentService.getRevisionContent(id, sha)
       if (content === null) {
         return reply.status(404).send({
@@ -323,7 +331,8 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      // TODO: Check document permissions (to be implemented later)
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       await documentService.restoreToRevision(id, sha, request.user!.sub)
       return reply.status(200).send({ message: 'Document restored successfully' })
     } catch (err: unknown) {

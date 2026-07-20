@@ -15,6 +15,20 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Register plugins
   await app.register(cookie)
 
+  // Map thrown errors (e.g. authorization asserts carrying statusCode) to a
+  // uniform JSON error shape so routes without their own try/catch still
+  // respond with the correct status code instead of a generic 500.
+  app.setErrorHandler((err, _request, reply) => {
+    const statusCode = (err as Error & { statusCode?: number }).statusCode ?? 500
+    const code =
+      statusCode === 401 ? 'UNAUTHORIZED'
+        : statusCode === 403 ? 'FORBIDDEN'
+        : statusCode === 404 ? 'NOT_FOUND'
+        : statusCode === 409 ? 'CONFLICT'
+        : 'INTERNAL_ERROR'
+    reply.status(statusCode).send({ error: { code, message: err.message } })
+  })
+
   // Health check
   app.get('/api/health', async () => {
     const checks: Record<string, string> = { git: 'ok' }

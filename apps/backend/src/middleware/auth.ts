@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { UserRole } from '@citadelmd/shared'
 import { verifyToken, type JwtPayload } from '../services/auth.service.js'
+import { prisma } from '../prisma.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -22,8 +23,30 @@ export async function authMiddleware(
     if (authHeader?.startsWith('Bearer ')) {
       token = authHeader.slice(7)
     } else if (authHeader?.startsWith('ApiKey ')) {
-      // API key auth: handle separately via apiKeyMiddleware
-      // For now, skip token verification — apiKeyMiddleware will catch it
+      // API key auth (MCP server / automation): resolve the user here so
+      // request.user is populated for downstream handlers.
+      const apiKey = authHeader.slice(7)
+      if (!apiKey) {
+        reply.status(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'API key required' },
+        })
+        return
+      }
+      const user = await prisma.user.findUnique({
+        where: { apiKey },
+        select: { id: true, login: true, role: true, active: true },
+      })
+      if (!user || !user.active) {
+        reply.status(401).send({
+          error: { code: 'INVALID_API_KEY', message: 'Invalid or inactive API key' },
+        })
+        return
+      }
+      request.user = {
+        sub: user.id,
+        login: user.login,
+        role: user.role as UserRole,
+      }
       return
     }
   }
