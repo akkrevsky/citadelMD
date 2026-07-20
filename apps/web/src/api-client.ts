@@ -101,8 +101,9 @@ class ApiClient {
   }
 
   // Users (admin)
-  listUsers() {
-    return this.request<UserRecord[]>('/users')
+  async listUsers(): Promise<UserRecord[]> {
+    const res = await this.request<{ data: UserRecord[] }>('/users')
+    return Array.isArray(res.data) ? res.data : []
   }
 
   createUser(data: {
