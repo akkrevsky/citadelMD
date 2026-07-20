@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { CollaborativeEditor } from '../components/CollaborativeEditor.js'
 import { MarkdownPreview } from '../components/MarkdownPreview.js'
-import { ExcalidrawEditor } from '../components/ExcalidrawEditor.js'
 import { UploadIndicator } from '../components/UploadIndicator.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
 import { api, type Document } from '../api-client.js'
+
+const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
 
 export function DocumentEditPage() {
   const { id } = useParams<{ id: string }>()
@@ -243,10 +244,12 @@ export function DocumentEditPage() {
       {showExcalidraw && (
         <div className="modal-overlay" onClick={() => setShowExcalidraw(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <ExcalidrawEditor
-              onSave={handleExcalidrawSave}
-              onClose={() => setShowExcalidraw(false)}
-            />
+            <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center' }}>Loading diagram editor...</div>}>
+              <ExcalidrawEditor
+                onSave={handleExcalidrawSave}
+                onClose={() => setShowExcalidraw(false)}
+              />
+            </Suspense>
           </div>
         </div>
       )}
