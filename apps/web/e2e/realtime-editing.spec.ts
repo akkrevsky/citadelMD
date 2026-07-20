@@ -4,11 +4,19 @@ test.describe('Real-time Collaborative Editing', () => {
   
   test.beforeEach(async ({ page }) => {
     // Login as admin
-    await page.goto('/')
-    await page.getByPlaceholder('Login').fill('admin')
-    await page.getByPlaceholder('Password').fill('admin123')
+    await page.goto('http://localhost:8081/')
+    
+    // Wait for the page to fully load and React to render
+    await page.waitForLoadState('networkidle')
+    
+    // Fill login form (using ID selectors)
+    await page.locator('#login').fill('admin')
+    await page.locator('#password').fill('admin123')
     await page.getByRole('button', { name: 'Sign in' }).click()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    
+    // Wait for dashboard to load
+    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 })
   })
 
   test('should create and edit document with real-time collaboration', async ({ page, context }) => {
@@ -144,14 +152,14 @@ test.describe('Real-time Collaborative Editing', () => {
       await page.getByRole('button', { name: 'Back to Dashboard' }).click()
       
       // Should navigate back to dashboard
-      await expect(page).toHaveURL('/')
+      await expect(page).toHaveURL('http://localhost:8081/')
       await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     }
   })
 
   test('should show proper loading and error states', async ({ page }) => {
     // Test navigation to a potentially non-existent document
-    await page.goto('/documents/invalid-id/edit')
+    await page.goto('http://localhost:8081/documents/invalid-id/edit')
     
     // Should handle error gracefully (either show error or redirect)
     // Wait for loading to complete
