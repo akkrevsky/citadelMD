@@ -94,6 +94,18 @@ class ApiClient {
     return res.json() as Promise<T>
   }
 
+  private async requestText(path: string): Promise<string> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      credentials: 'same-origin',
+    })
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as ApiError | null
+      const message = body?.error?.message ?? `Request failed with status ${res.status}`
+      throw new Error(message)
+    }
+    return res.text()
+  }
+
   // Auth
   login(login: string, password: string) {
     return this.request<{ user: CurrentUser; expiresAt: string }>(
@@ -159,7 +171,7 @@ class ApiClient {
   }
 
   exportDocument(id: string) {
-    return this.request<string>(`/documents/${id}/export`)
+    return this.requestText(`/documents/${id}/export`)
   }
 
   commitDocument(id: string, message: string) {
