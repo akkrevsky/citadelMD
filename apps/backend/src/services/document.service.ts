@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import { Redis } from 'ioredis'
 import { GitService, createFileLock, type GitAuthor, type GitRevision } from '@citadelmd/shared'
 import { prisma } from '../prisma.js'
+import { RedisLockService } from './redis-lock.service.js'
 
 // ========== Types ==========
 
@@ -36,6 +37,8 @@ export interface DocumentRevision extends GitRevision {
 export class DocumentService {
   private git: GitService
   private withFileLock: ReturnType<typeof createFileLock>
+  private redisLock: RedisLockService
+  private yjsServerUrl: string
 
   constructor() {
     const repoPath = this.getGitRepoPath()
@@ -46,6 +49,8 @@ export class DocumentService {
     const redis = new Redis(redisUrl)
     
     this.withFileLock = createFileLock(redis)
+    this.redisLock = new RedisLockService(redisUrl)
+    this.yjsServerUrl = process.env.YJS_SERVER_URL || 'http://localhost:1234'
   }
 
   // ========== Core Methods ==========
@@ -431,6 +436,112 @@ export class DocumentService {
         where: { id }
       })
     })
+  }
+
+  /**
+   * Commit document changes with Yjs flush + git commit
+   */
+  async commitDocument(id: string, message: string, userId: string): Promise<void> {
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { filePath: true }
+    })
+
+    if (!document) {
+      throw Object.assign(new Error('Document not found'), { statusCode: 404 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { login: true, gitName: true, gitEmail: true }
+    })
+
+    if (!user) {
+      throw Object.assign(new Error('User not found'), { statusCode: 404 })
+    }
+
+    const author: GitAuthor = {
+      name: user.gitName ?? user.login,
+      email: user.gitEmail ?? `${user.login}@mdcollab.local`
+    }
+
+    await this.redisLock.withFileLock(document.filePath, async () => {
+      // Flush Yjs document if active sessions exist
+      if (await this.hasActiveYjsSession(id)) {
+        await this.flushYjsDocument(id)
+      }
+
+      const result = await this.git.commit(message, author)
+      if (!result) {
+        throw new Error('No changes to commit')
+      }
+    })
+  }
+
+  /**
+   * Discard document changes with git checkout + Yjs reload
+   */
+  async discardDocument(id: string): Promise<void> {
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { filePath: true }
+    })
+
+    if (!document) {
+      throw Object.assign(new Error('Document not found'), { statusCode: 404 })
+    }
+
+    await this.redisLock.withFileLock(document.filePath, async () => {
+      await this.git.discard(document.filePath)
+
+      // Reload Yjs document if active sessions exist
+      if (await this.hasActiveYjsSession(id)) {
+        await this.reloadYjsDocument(id)
+      }
+    })
+  }
+
+  /**
+   * Check if document has active Yjs sessions
+   */
+  async hasActiveYjsSession(docId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.yjsServerUrl}/internal/yjs-session-active?docid=${encodeURIComponent(docId)}`)
+      if (!response.ok) {
+        return false
+      }
+      const data = await response.json() as { active: boolean }
+      return data.active === true
+    } catch {
+      // Graceful fallback if yjs-server is unavailable
+      return false
+    }
+  }
+
+  /**
+   * Flush Yjs document to file
+   */
+  private async flushYjsDocument(docId: string): Promise<void> {
+    const response = await fetch(`${this.yjsServerUrl}/internal/flush?docid=${encodeURIComponent(docId)}`, {
+      method: 'POST'
+    })
+    if (!response.ok) {
+      const error = await response.json() as { error: string }
+      throw new Error(`Failed to flush Yjs document: ${error.error}`)
+    }
+  }
+
+  /**
+   * Reload Yjs document from file
+   */
+  private async reloadYjsDocument(docId: string): Promise<void> {
+    const response = await fetch(`${this.yjsServerUrl}/internal/reload?docid=${encodeURIComponent(docId)}`, {
+      method: 'POST'
+    })
+    if (!response.ok) {
+      const error = await response.json() as { error: string }
+      throw new Error(`Failed to reload Yjs document: ${error.error}`)
+    }
   }
 
   // ========== Helpers ==========
