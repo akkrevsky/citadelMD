@@ -67,19 +67,21 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
       quota = await prisma.userQuota.create({
         data: {
           userId,
-          maxStorageBytes: 5 * 1024 * 1024 * 1024,
-          usedStorageBytes: 0,
+          maxStorageBytes: BigInt(5 * 1024 * 1024 * 1024),
+          usedStorageBytes: BigInt(0),
         },
       })
     }
 
-    const newUsed = quota.usedStorageBytes + sizeBytes
-    if (newUsed > quota.maxStorageBytes) {
+    const usedBytes = Number(quota.usedStorageBytes)
+    const maxBytes = Number(quota.maxStorageBytes)
+    const newUsed = usedBytes + sizeBytes
+    if (newUsed > maxBytes) {
       reply.code(413)
       return {
         error: {
           code: 'QUOTA_EXCEEDED',
-          message: `Storage quota exceeded (${(quota.maxStorageBytes / 1024 / 1024 / 1024).toFixed(1)} GB limit)`,
+          message: `Storage quota exceeded (${(maxBytes / 1024 / 1024 / 1024).toFixed(1)} GB limit)`,
         },
       }
     }
@@ -105,7 +107,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
 
     await prisma.userQuota.update({
       where: { userId },
-      data: { usedStorageBytes: newUsed },
+      data: { usedStorageBytes: BigInt(newUsed) },
     })
 
     reply.code(201)
@@ -144,12 +146,12 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     let quota = await prisma.userQuota.findUnique({ where: { userId } })
     if (!quota) {
       quota = await prisma.userQuota.create({
-        data: { userId, maxStorageBytes: 5 * 1024 * 1024 * 1024, usedStorageBytes: 0 },
+        data: { userId, maxStorageBytes: BigInt(5 * 1024 * 1024 * 1024), usedStorageBytes: BigInt(0) },
       })
     }
     return {
-      maxBytes: quota.maxStorageBytes,
-      usedBytes: quota.usedStorageBytes,
+      maxBytes: Number(quota.maxStorageBytes),
+      usedBytes: Number(quota.usedStorageBytes),
       availableBytes: Number(quota.maxStorageBytes) - Number(quota.usedStorageBytes),
     }
   })
