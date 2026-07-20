@@ -13,13 +13,12 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/documents/:id" element={<DocumentEditPage />} />
-        <Route path="/documents/:id/edit" element={<DocumentEditPage />} />
         <Route path="/share/:token" element={<GuestDocumentPage />} />
         <Route path="/" element={<DashboardPage />}>
           <Route index element={<HomePage />} />
           <Route path="admin/users" element={<AdminUsersPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="documents/:id/edit" element={<DocumentEditPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
