@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie'
 import { ensureGitRepo } from './services/git-init.js'
 import { authRoutes } from './routes/auth.js'
 import { userRoutes } from './routes/users.js'
+import { folderRoutes } from './routes/folders.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
@@ -21,6 +22,9 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // User routes (admin-only)
   await app.register(userRoutes)
+
+  // Folder routes
+  await app.register(folderRoutes)
 
   return app
 }

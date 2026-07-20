@@ -84,4 +84,16 @@ export class GitService {
   async show(sha: string, filePath: string): Promise<string> {
     return this.git.show([`${sha}:${filePath}`])
   }
+
+  async mkdir(dirPath: string): Promise<void> {
+    await this.git.raw(['commit', '--allow-empty', '-m', `mkdir: ${dirPath}`])
+  }
+
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    await this.git.mv(oldPath, newPath)
+  }
+
+  async remove(filePath: string): Promise<void> {
+    await this.git.rm([filePath, '-r'])
+  }
 }
