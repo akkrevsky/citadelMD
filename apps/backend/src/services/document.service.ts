@@ -76,7 +76,7 @@ export class DocumentService {
     }
 
     const fileName = this.sanitizeFileName(title) + '.md'
-    const filePath = `${folder.gitPath}/${fileName}`
+    const filePath = folder.gitPath ? `${folder.gitPath}/${fileName}` : fileName
     const fullPath = path.join(this.getGitRepoPath(), filePath)
 
     // Get user for Git author
