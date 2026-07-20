@@ -4,6 +4,7 @@ import mermaidPlugin from 'markdown-it-mermaid'
 import taskLists from 'markdown-it-task-lists'
 import container from 'markdown-it-container'
 import DOMPurify from 'dompurify'
+import { excalidrawBlockPlugin } from '../components/ExcalidrawPlugin.js'
 import type { Config as DOMPurifyConfig } from 'dompurify'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
@@ -52,24 +53,7 @@ export function getMarkdownIt(): MarkdownIt {
   ;['warning', 'info', 'danger', 'tip', 'note'].forEach((t: string) => createCalloutContainer(md!, t))
 
   embedPlugin(md)
-
-  const defaultFence = md.renderer.rules.fence
-  md.renderer.rules.fence = (tokens: any[], idx: number) => {
-    const token = tokens[idx]
-    if (token.info.trim() === 'excalidraw') {
-      const svgContent = token.content.trim()
-      if (svgContent.startsWith('data:image/svg+xml;base64,')) {
-        try {
-          const decoded = atob(svgContent.replace('data:image/svg+xml;base64,', ''))
-          return `<div class="excalidraw-embed">${decoded}</div>`
-        } catch {
-          return `<div class="excalidraw-embed">${svgContent}</div>`
-        }
-      }
-      return `<div class="excalidraw-embed">${svgContent}</div>`
-    }
-    return defaultFence ? defaultFence(tokens, idx, {} as any, {} as any, {} as any) : ''
-  }
+  excalidrawBlockPlugin(md)
 
   return md
 }
