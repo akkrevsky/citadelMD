@@ -260,6 +260,37 @@ html, body, #root {
   color: var(--color-text-muted);
 }
 
+.tree-item.document .document-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.document-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tree-item.document:hover .document-actions {
+  opacity: 1;
+}
+
+.document-edit-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+}
+
+.document-edit-link:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
 .tree-empty {
   padding: 1rem;
   font-size: 0.85rem;
@@ -484,4 +515,183 @@ html, body, #root {
 
 .editor-container .cm-editor {
   height: 100%;
+}
+
+/* ---- Document Edit Page ---- */
+
+.document-edit-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-bg);
+}
+
+.document-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow);
+  flex-shrink: 0;
+  gap: 1rem;
+}
+
+.document-info h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.document-path {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+.document-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.changes-indicator {
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.commit-section {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.commit-section input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  min-width: 200px;
+}
+
+.commit-section input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+}
+
+.commit-section button {
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.commit-section button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.commit-section button:disabled {
+  background: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.discard-button {
+  padding: 0.5rem 1rem;
+  background: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.discard-button:hover:not(:disabled) {
+  background: var(--color-danger-hover);
+}
+
+.discard-button:disabled {
+  background: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.document-actions button:not(.commit-section button):not(.discard-button) {
+  padding: 0.5rem 1rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.document-actions button:not(.commit-section button):not(.discard-button):hover {
+  background: var(--color-bg);
+  border-color: var(--color-primary);
+}
+
+.editor-section {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.collaborative-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-status {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  font-size: 0.75rem;
+}
+
+.status-connected {
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.status-disconnected {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.status-error {
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.collaborative-editor .editor-container {
+  border-radius: 0 0 var(--radius) var(--radius);
+  border-top: none;
+}
+
+.document-edit-page .loading,
+.document-edit-page .error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50vh;
+  font-size: 1.125rem;
+  color: var(--color-text-muted);
 }

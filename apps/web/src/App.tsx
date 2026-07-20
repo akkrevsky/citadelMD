@@ -4,6 +4,7 @@ import DashboardPage from './pages/DashboardPage'
 import HomePage from './pages/HomePage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import ProfilePage from './pages/ProfilePage'
+import { DocumentEditPage } from './pages/DocumentEditPage'
 import './styles.css'
 
 export default function App() {
@@ -11,11 +12,13 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/documents/:id" element={<DocumentEditPage />} />
         <Route path="/" element={<DashboardPage />}>
           <Route index element={<HomePage />} />
           <Route path="admin/users" element={<AdminUsersPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
+        <Route path="/documents/:id/edit" element={<DocumentEditPage />} />
       </Routes>
     </BrowserRouter>
   )
