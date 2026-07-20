@@ -18,7 +18,6 @@ export default function App() {
           <Route path="admin/users" element={<AdminUsersPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
-        <Route path="/documents/:id/edit" element={<DocumentEditPage />} />
       </Routes>
     </BrowserRouter>
   )
