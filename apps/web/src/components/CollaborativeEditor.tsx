@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { searchKeymap } from '@codemirror/search'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
@@ -142,6 +142,7 @@ interface CollaborativeEditorProps {
   onContentChange?: (content: string) => void
   onCursorChange?: (line: number, col: number) => void
   onDocStats?: (stats: { words: number; chars: number; lines: number }) => void
+  onConnectionChange?: (status: 'connected' | 'connecting' | 'disconnected') => void
 }
 
 export function CollaborativeEditor({
@@ -152,6 +153,7 @@ export function CollaborativeEditor({
   onContentChange,
   onCursorChange,
   onDocStats,
+  onConnectionChange,
 }: CollaborativeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -170,12 +172,16 @@ export function CollaborativeEditor({
       ytext.insert(0, initialContent)
     }
 
-    // Setup WebSocket provider through nginx proxy
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/socket`
+    // Setup WebSocket provider — connect via nginx /socket path
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/socket`
     const docId = `doc-${documentId}`
 
+    // y-websocket builds URL as wsUrl/docId, but our server expects ?docid=
+    // So use wsUrl without room path and pass docid as a param
     const provider = new WebsocketProvider(wsUrl, docId, ydoc, {
       params: {
+        docid: docId,
         ...(shareToken ? { token: shareToken } : {}),
       },
     })
@@ -184,6 +190,9 @@ export function CollaborativeEditor({
       setIsConnected(event.status === 'connected')
       if (event.status === 'connected') {
         setError(null)
+      }
+      if (onConnectionChange) {
+        onConnectionChange(event.status as 'connected' | 'connecting' | 'disconnected')
       }
     })
 
@@ -253,8 +262,34 @@ export function CollaborativeEditor({
       onDocStats(calcStats(ytext.toString()))
     }
 
+    // Listen for insert-at-cursor events from toolbar
+    function handleInsertAtCursor(e: Event) {
+      const detail = (e as CustomEvent).detail as { text: string }
+      if (!detail?.text) return
+
+      if (detail.text === '__undo__') {
+        undo(viewRef.current!)
+        return
+      }
+
+      if (detail.text === '__redo__') {
+        redo(viewRef.current!)
+        return
+      }
+
+      // Insert text at cursor position
+      viewRef.current!.dispatch({
+        changes: { from: viewRef.current!.state.selection.main.head, insert: detail.text },
+        selection: { anchor: viewRef.current!.state.selection.main.head + detail.text.length },
+        scrollIntoView: true,
+      })
+    }
+
+    window.document.addEventListener('insert-at-cursor', handleInsertAtCursor)
+
     // Cleanup
     return () => {
+      window.document.removeEventListener('insert-at-cursor', handleInsertAtCursor)
       provider.destroy()
       view.destroy()
     }

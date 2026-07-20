@@ -83,10 +83,10 @@ export function DocumentEditPage() {
     // Simple format insertions (will be refined with actual CM6 commands later)
     switch (type) {
       case 'undo':
-        document.execCommand('undo')
+        handleInsertAtCursor('__undo__')
         break
       case 'redo':
-        document.execCommand('redo')
+        handleInsertAtCursor('__redo__')
         break
       case 'bold':
         handleInsertAtCursor('**bold text**')
@@ -148,6 +148,18 @@ export function DocumentEditPage() {
     const insertText = '```excalidraw\n' + svgDataUrl + '\n```\n\n'
     handleInsertAtCursor(insertText)
     setShowExcalidraw(false)
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsCommitting(true)
+      await api.commitDocument(id!, 'Auto-save')
+      setHasChanges(false)
+    } catch (error) {
+      console.error('Save failed:', error)
+    } finally {
+      setIsCommitting(false)
+    }
   }
 
   const handleCommit = async () => {
@@ -240,6 +252,14 @@ export function DocumentEditPage() {
             <span className="changes-indicator">Unsaved changes</span>
           )}
 
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || isCommitting}
+            className="btn btn-sm btn-primary"
+          >
+            {isCommitting ? 'Saving...' : 'Save'}
+          </button>
+
           <div className="commit-section">
             <input
               type="text"
@@ -319,41 +339,26 @@ export function DocumentEditPage() {
         </div>
       </div>
 
-      {/* Editor section — split view */}
+      {/* Editor section — always render editor, switch visibility via CSS */}
       <div className="editor-section">
-        {viewMode === 'source' && (
-          <div className="code-editor-pane full-width">
-            <CollaborativeEditor
-              documentId={id!}
-              initialContent={content}
-              onContentChange={handleContentChange}
-              onCursorChange={handleCursorChange}
-              onDocStats={handleDocStats}
-            />
-          </div>
-        )}
+        <div
+          className={`code-editor-pane${viewMode === 'source' ? ' full-width' : ''}`}
+          style={{ display: viewMode === 'preview' ? 'none' : undefined }}
+        >
+          <CollaborativeEditor
+            documentId={id!}
+            initialContent={content}
+            onContentChange={handleContentChange}
+            onCursorChange={handleCursorChange}
+            onDocStats={handleDocStats}
+            onConnectionChange={(status) => {
+              setIsConnected(status === 'connected')
+            }}
+          />
+        </div>
 
-        {viewMode === 'split' && (
-          <div className="editor-with-preview">
-            <div className="code-editor-pane">
-              <CollaborativeEditor
-                documentId={id!}
-                initialContent={content}
-                onContentChange={handleContentChange}
-                onCursorChange={handleCursorChange}
-                onDocStats={handleDocStats}
-              />
-            </div>
-            <div className="preview-pane">
-              <div className="preview-wrapper">
-                <MarkdownPreview content={content} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {viewMode === 'preview' && (
-          <div className="preview-pane full-width">
+        {viewMode !== 'source' && (
+          <div className={`preview-pane${viewMode === 'preview' ? ' full-width' : ''}`}>
             <div className="preview-wrapper">
               <MarkdownPreview content={content} />
             </div>
@@ -369,8 +374,8 @@ export function DocumentEditPage() {
         cursorLine={cursorPos.line}
         cursorCol={cursorPos.col}
         fileName={doc.title + '.md'}
-        isConnected={false}
-        connectionStatus="disconnected"
+        isConnected={isConnected}
+        connectionStatus={isConnected ? 'connected' : 'disconnected'}
         readTime={readTime}
       />
 

@@ -38,16 +38,20 @@ export class YjsWebSocketServer {
 
         const url = new URL(request.url, `http://localhost`)
         const docId = url.searchParams.get('docid')
+        // Also support path-based room names from y-websocket: /socket/roomName
+        const pathParts = url.pathname.split('/').filter(Boolean)
+        const pathDocId = pathParts.length > 0 ? pathParts[pathParts.length - 1] : null
+        const effectiveDocId = docId || (pathDocId && pathDocId.startsWith('doc-') ? pathDocId : null)
         const token = url.searchParams.get('token')
         
         // Validate docId parameter
-        if (!docId) {
+        if (!effectiveDocId) {
           ws.close(1000, 'Missing docid parameter')
           return
         }
 
         // Basic docId format validation (prevent path traversal, etc.)
-        if (!/^[a-zA-Z0-9_-]+$/.test(docId)) {
+        if (!/^[a-zA-Z0-9_-]+$/.test(effectiveDocId)) {
           ws.close(1003, 'Invalid docid format')
           return
         }
@@ -62,13 +66,13 @@ export class YjsWebSocketServer {
         
         permissionPromise.then((permission) => {
           if (permission === 'READ' || permission === 'WRITE') {
-            console.log(`[YjsWS] Guest connection with ${permission} permission for document ${docId}`)
+            console.log(`[YjsWS] Guest connection with ${permission} permission for document ${effectiveDocId}`)
           }
           
           const connectionId = this.generateConnectionId()
           const connectionInfo: ConnectionInfo = {
             ws,
-            docId,
+            docId: effectiveDocId,
             connectionId,
             permission
           }
@@ -76,10 +80,10 @@ export class YjsWebSocketServer {
           this.connections.set(connectionId, connectionInfo)
           
           // Initialize or get document session with atomic lock
-          this.initializeDocumentSession(docId, connectionId)
+          this.initializeDocumentSession(effectiveDocId, connectionId)
             .then(() => {
               // Send initial document state with error handling
-              const session = this.yjsManager.getDocument(docId)
+              const session = this.yjsManager.getDocument(effectiveDocId)
               if (session && ws.readyState === WebSocket.OPEN) {
                 try {
                   const update = Y.encodeStateAsUpdate(session.ydoc)
@@ -91,7 +95,7 @@ export class YjsWebSocketServer {
                 }
               }
               
-              console.log(`[YjsWS] Client connected: ${connectionId} for document ${docId}`)
+              console.log(`[YjsWS] Client connected: ${connectionId} for document ${effectiveDocId}`)
             })
             .catch((error) => {
               console.error(`[YjsWS] Error initializing document session:`, error)
