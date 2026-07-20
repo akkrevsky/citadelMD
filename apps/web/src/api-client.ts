@@ -30,11 +30,31 @@ export interface TreeItem {
   children?: TreeItem[]
 }
 
+export interface FolderNode {
+  id: string
+  name: string
+  permission: string
+  children: FolderNode[]
+  documents: Document[]
+}
+
 export interface Document {
   id: string
   title: string
   filePath: string
   updatedAt: string
+}
+
+/** Convert FolderNode[] + documents to flat TreeItem[] */
+function flattenTree(folders: FolderNode[]): TreeItem[] {
+  const result: TreeItem[] = []
+  for (const folder of folders) {
+    result.push({ id: folder.id, name: folder.name, type: 'folder', children: flattenTree(folder.children) })
+    for (const doc of folder.documents) {
+      result.push({ id: doc.id, name: doc.title, type: 'document' })
+    }
+  }
+  return result
 }
 
 class ApiClient {
@@ -125,8 +145,9 @@ class ApiClient {
   // Folder tree
   async getTree(): Promise<TreeItem[]> {
     try {
-      const res = await this.request<{ tree: TreeItem[] }>('/tree')
-      return Array.isArray(res.tree) ? res.tree : []
+      const res = await this.request<{ tree: FolderNode[] }>('/tree')
+      const folders = Array.isArray(res.tree) ? res.tree : []
+      return flattenTree(folders)
     } catch {
       return []
     }
