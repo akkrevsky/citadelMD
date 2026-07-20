@@ -1,14 +1,18 @@
 import { useState, useCallback, useRef } from 'react'
 import { Excalidraw, MainMenu, WelcomeScreen } from '@excalidraw/excalidraw'
+import type {
+  ExcalidrawImperativeAPI,
+  ExcalidrawInitialDataState,
+} from '@excalidraw/excalidraw/types'
 
 interface ExcalidrawEditorProps {
-  initialData?: any
+  initialData?: ExcalidrawInitialDataState
   onSave: (svgDataUrl: string) => void
   onClose: () => void
 }
 
 export function ExcalidrawEditor({ initialData, onSave, onClose }: ExcalidrawEditorProps) {
-  const excalidrawRef = useRef<any>(null)
+  const excalidrawRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   const handleExport = useCallback(async () => {
@@ -16,7 +20,16 @@ export function ExcalidrawEditor({ initialData, onSave, onClose }: ExcalidrawEdi
     setIsSaving(true)
 
     try {
-      const svg: SVGSVGElement = await excalidrawRef.current.exportToSvg({
+      const elements = excalidrawRef.current.getSceneElements()
+      const appState = excalidrawRef.current.getAppState()
+      const files = excalidrawRef.current.getFiles()
+
+      // Use export helper
+      const { exportToSvg } = await import('@excalidraw/excalidraw')
+      const svg = await exportToSvg({
+        elements,
+        appState,
+        files,
         exportBackground: true,
         exportWithDarkMode: false,
       })
@@ -37,7 +50,7 @@ export function ExcalidrawEditor({ initialData, onSave, onClose }: ExcalidrawEdi
   return (
     <div className="excalidraw-editor-wrapper" style={{ height: '500px' }}>
       <Excalidraw
-        excalidrawAPI={(api: any) => { excalidrawRef.current = api }}
+        excalidrawAPI={(api) => { excalidrawRef.current = api }}
         initialData={initialData}
       >
         <WelcomeScreen />

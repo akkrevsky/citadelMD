@@ -9,6 +9,7 @@ export interface ConnectionInfo {
   docId: string
   userId?: string
   connectionId: string
+  permission?: 'READ' | 'EDIT'
 }
 
 export class YjsWebSocketServer {
@@ -157,7 +158,10 @@ export class YjsWebSocketServer {
   private handleYjsUpdate(connectionId: string, data: RawData): void {
     const connection = this.connections.get(connectionId)
     if (!connection) return
-    
+
+    // Skip updates from READ-only connections (guests)
+    if (connection.permission === 'READ') return
+
     const session = this.yjsManager.getDocument(connection.docId)
     if (!session) return
     
