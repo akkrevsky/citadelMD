@@ -48,7 +48,10 @@ function ExcalidrawEditor({ onSave, onClose }: ExcalidrawEditorProps) {
 
   return (
     <div style={{ height: '500px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-      <Excalidraw excalidrawAPI={(api: any) => setElRef(api)} />
+      <Excalidraw
+        excalidrawAPI={(api: any) => setElRef(api)}
+        UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false }, tools: { image: false }, dockedSidebarBreakpoint: 0 }}
+      />
       <div style={{ display: 'flex', gap: '8px', padding: '8px 12px', borderTop: '1px solid #e2e8f0', background: '#fafafa' }}>
         <button onClick={handleExport} disabled={isSaving}
           style={{ padding: '6px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>

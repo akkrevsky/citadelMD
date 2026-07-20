@@ -81,6 +81,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    ports:
+      - "3000:3000"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-mdcollab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mdcollab}
       REDIS_URL: redis://redis:6379
@@ -114,6 +116,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "1234:1234"
     environment:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?required}
@@ -160,6 +164,8 @@ services:
       context: ../
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
+    ports:
+      - "8081:80"
     networks: [internal]
 
   nginx:

@@ -22,6 +22,7 @@ export default function DashboardPage() {
   }, [navigate])
 
   useEffect(() => {
+    if (!user) return
     api
       .getTree()
       .then(setTree)
@@ -29,7 +30,7 @@ export default function DashboardPage() {
         // tree unavailable is not fatal
       })
       .finally(() => setTreeLoading(false))
-  }, [])
+  }, [user])
 
   function renderTree(items: TreeItem[], depth = 0) {
     if (!Array.isArray(items)) return null
