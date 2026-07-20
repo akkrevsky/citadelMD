@@ -47,22 +47,33 @@ export class GitService {
     await this.git.addConfig(key, value)
   }
 
-  async commit(message: string, author: GitAuthor): Promise<GitCommitResult | null> {
-    // Check if there are any changes to commit
-    const status = await this.git.status()
-    if (status.files.length === 0) {
-      return null
+  async commit(message: string, author: GitAuthor, filePaths?: string[]): Promise<GitCommitResult | null> {
+    if (filePaths !== undefined) {
+      // Stage ONLY the given paths so unrelated auto-saved files are not swept
+      // into this commit. An empty array means "commit what is already staged"
+      // (used after git mv / git rm, which stage their own changes).
+      if (filePaths.length > 0) {
+        await this.git.add(filePaths)
+      }
+      const status = await this.git.status()
+      if (status.staged.length === 0) {
+        return null
+      }
+    } else {
+      const status = await this.git.status()
+      if (status.files.length === 0) {
+        return null
+      }
+      await this.git.add(['-A'])
     }
 
-    // Add all changes
-    await this.git.add(['-A'])
     const result = await this.git.commit(message, {
       '--author': `${author.name} <${author.email}>`,
     })
-    
+
     return {
       sha: result.commit,
-      message: message
+      message
     }
   }
 

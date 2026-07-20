@@ -2,6 +2,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { GitService, type FolderPermissionLevel } from '@citadelmd/shared'
 import { prisma } from '../prisma.js'
+import { withFileLock } from './lock.js'
 
 // ========== Types ==========
 
@@ -193,14 +194,6 @@ export async function createFolder(input: CreateFolderInput) {
   const gitPath = await resolveGitPath(parentId, name)
   const repoPath = getGitRepoPath()
 
-  // Create git directory
-  const gitDir = path.join(repoPath, gitPath)
-  await fs.mkdir(gitDir, { recursive: true })
-
-  // Create .gitkeep so the empty folder is tracked by git
-  await fs.writeFile(path.join(gitDir, '.gitkeep'), '')
-
-  // Git commit
   const createdBy = await prisma.user.findUnique({
     where: { id: createdById },
     select: { login: true, gitName: true, gitEmail: true },
@@ -208,11 +201,20 @@ export async function createFolder(input: CreateFolderInput) {
   const authorName = createdBy?.gitName ?? createdBy?.login ?? 'Unknown'
   const authorEmail = createdBy?.gitEmail ?? `${createdBy?.login ?? 'unknown'}@mdcollab.local`
 
+  const gitDir = path.join(repoPath, gitPath)
   const git = new GitService(repoPath)
-  await git.commit(
-    `Create folder ${name} [user:${createdBy?.login ?? 'unknown'}]`,
-    { name: authorName, email: authorEmail },
-  )
+
+  // Serialize filesystem mutation with document ops / yjs auto-save
+  await withFileLock(gitPath, async () => {
+    await fs.mkdir(gitDir, { recursive: true })
+    await fs.writeFile(path.join(gitDir, '.gitkeep'), '')
+
+    await git.commit(
+      `Create folder ${name} [user:${createdBy?.login ?? 'unknown'}]`,
+      { name: authorName, email: authorEmail },
+      [`${gitPath}/.gitkeep`],
+    )
+  })
 
   // Create in DB
   const folder = await prisma.folder.create({
@@ -256,10 +258,6 @@ export async function renameFolder(folderId: string, input: UpdateFolderInput, u
   const repoPath = getGitRepoPath()
   const git = new GitService(repoPath)
 
-  // git mv old -> new
-  await git.move(oldGitPath, newGitPath)
-
-  // Commit
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { login: true, gitName: true, gitEmail: true },
@@ -267,10 +265,15 @@ export async function renameFolder(folderId: string, input: UpdateFolderInput, u
   const authorName = user?.gitName ?? user?.login ?? 'Unknown'
   const authorEmail = user?.gitEmail ?? `${user?.login ?? 'unknown'}@mdcollab.local`
 
-  await git.commit(
-    `Rename folder ${folder.name} -> ${newName} [user:${user?.login ?? 'unknown'}]`,
-    { name: authorName, email: authorEmail },
-  )
+  // Serialize the move + commit with other folder/document ops
+  await withFileLock(oldGitPath, async () => {
+    await git.move(oldGitPath, newGitPath)
+    await git.commit(
+      `Rename folder ${folder.name} -> ${newName} [user:${user?.login ?? 'unknown'}]`,
+      { name: authorName, email: authorEmail },
+      [], // git mv staged the rename; commit staged only, do not sweep other files
+    )
+  })
 
   // Update DB: folder name and gitPath
   const updated = await prisma.folder.update({
@@ -344,10 +347,6 @@ export async function deleteFolder(folderId: string, userId: string) {
     where: { folderId: { in: descendantFolderIds } },
   })
 
-  // Git rm -r (recursive)
-  await git.remove(folder.gitPath)
-
-  // Commit
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { login: true, gitName: true, gitEmail: true },
@@ -355,10 +354,15 @@ export async function deleteFolder(folderId: string, userId: string) {
   const authorName = user?.gitName ?? user?.login ?? 'Unknown'
   const authorEmail = user?.gitEmail ?? `${user?.login ?? 'unknown'}@mdcollab.local`
 
-  await git.commit(
-    `Delete folder ${folder.name} [user:${user?.login ?? 'unknown'}]`,
-    { name: authorName, email: authorEmail },
-  )
+  // Serialize the removal + commit with other folder/document ops
+  await withFileLock(folder.gitPath, async () => {
+    await git.remove(folder.gitPath)
+    await git.commit(
+      `Delete folder ${folder.name} [user:${user?.login ?? 'unknown'}]`,
+      { name: authorName, email: authorEmail },
+      [], // git rm staged the deletion; commit staged only, do not sweep
+    )
+  })
 
   // Delete from DB (cascade handled by Prisma)
   if (documents.length > 0) {
