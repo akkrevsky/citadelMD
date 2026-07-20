@@ -4,12 +4,14 @@ import * as Y from 'yjs'
 import { randomUUID } from 'crypto'
 import { YjsManager } from './yjs-manager.js'
 
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://backend:3000'
+
 export interface ConnectionInfo {
   ws: WebSocket
   docId: string
   userId?: string
   connectionId: string
-  permission?: 'READ' | 'EDIT'
+  permission?: 'READ' | 'WRITE'
 }
 
 export class YjsWebSocketServer {
@@ -53,53 +55,68 @@ export class YjsWebSocketServer {
         // TODO: Validate JWT token in Phase 3+
         // For now, accept all connections with valid docId format
         
-        const connectionId = this.generateConnectionId()
-        const connectionInfo: ConnectionInfo = {
-          ws,
-          docId,
-          connectionId
-        }
+        // Validate share token for guest connections
+        const permissionPromise = token
+          ? this.validateShareToken(token)
+          : Promise.resolve<ConnectionInfo['permission']>(undefined)
         
-        this.connections.set(connectionId, connectionInfo)
-        
-        // Initialize or get document session with atomic lock
-        this.initializeDocumentSession(docId, connectionId)
-          .then(() => {
-            // Send initial document state with error handling
-            const session = this.yjsManager.getDocument(docId)
-            if (session && ws.readyState === WebSocket.OPEN) {
-              try {
-                const update = Y.encodeStateAsUpdate(session.ydoc)
-                ws.send(update)
-              } catch (error) {
-                console.error(`[YjsWS] Error sending initial state to ${connectionId}:`, error)
-                ws.close(1011, 'Server error sending initial state')
-                return
+        permissionPromise.then((permission) => {
+          if (permission === 'READ' || permission === 'WRITE') {
+            console.log(`[YjsWS] Guest connection with ${permission} permission for document ${docId}`)
+          }
+          
+          const connectionId = this.generateConnectionId()
+          const connectionInfo: ConnectionInfo = {
+            ws,
+            docId,
+            connectionId,
+            permission
+          }
+          
+          this.connections.set(connectionId, connectionInfo)
+          
+          // Initialize or get document session with atomic lock
+          this.initializeDocumentSession(docId, connectionId)
+            .then(() => {
+              // Send initial document state with error handling
+              const session = this.yjsManager.getDocument(docId)
+              if (session && ws.readyState === WebSocket.OPEN) {
+                try {
+                  const update = Y.encodeStateAsUpdate(session.ydoc)
+                  ws.send(update)
+                } catch (error) {
+                  console.error(`[YjsWS] Error sending initial state to ${connectionId}:`, error)
+                  ws.close(1011, 'Server error sending initial state')
+                  return
+                }
               }
-            }
-            
-            console.log(`[YjsWS] Client connected: ${connectionId} for document ${docId}`)
+              
+              console.log(`[YjsWS] Client connected: ${connectionId} for document ${docId}`)
+            })
+            .catch((error) => {
+              console.error(`[YjsWS] Error initializing document session:`, error)
+              ws.close(1011, 'Server error initializing document')
+              this.connections.delete(connectionId)
+            })
+          
+          // Setup message handler for Yjs updates
+          ws.on('message', (data: RawData) => {
+            this.handleYjsUpdate(connectionId, data)
           })
-          .catch((error) => {
-            console.error(`[YjsWS] Error initializing document session:`, error)
-            ws.close(1011, 'Server error initializing document')
-            this.connections.delete(connectionId)
+          
+          // Setup close handler
+          ws.on('close', () => {
+            this.handleDisconnection(connectionId)
           })
-        
-        // Setup message handler for Yjs updates
-        ws.on('message', (data: RawData) => {
-          this.handleYjsUpdate(connectionId, data)
-        })
-        
-        // Setup close handler
-        ws.on('close', () => {
-          this.handleDisconnection(connectionId)
-        })
-        
-        // Setup error handler
-        ws.on('error', (error) => {
-          console.error(`[YjsWS] WebSocket error for ${connectionId}:`, error)
-          this.handleDisconnection(connectionId)
+          
+          // Setup error handler
+          ws.on('error', (error) => {
+            console.error(`[YjsWS] WebSocket error for ${connectionId}:`, error)
+            this.handleDisconnection(connectionId)
+          })
+        }).catch((error) => {
+          console.error(`[YjsWS] Token validation failed:`, error)
+          ws.close(1008, 'Invalid or expired share token')
         })
         
       } catch (error) {
@@ -207,6 +224,34 @@ export class YjsWebSocketServer {
     }
   }
   
+  private async validateShareToken(token: string): Promise<ConnectionInfo['permission'] | undefined> {
+    try {
+      const url = `${BACKEND_API_URL}/api/shares/${encodeURIComponent(token)}`
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
+      const response = await fetch(url, { signal: controller.signal })
+      clearTimeout(timeout)
+      
+      if (!response.ok) {
+        console.warn(`[YjsWS] Share token validation failed with status ${response.status}`)
+        return undefined
+      }
+      
+      const body = await response.json() as { share?: { permission?: string } }
+      const permission = body?.share?.permission
+      
+      if (permission !== 'READ' && permission !== 'WRITE') {
+        console.warn(`[YjsWS] Unknown permission from share token: ${permission}`)
+        return undefined
+      }
+      
+      return permission as ConnectionInfo['permission']
+    } catch (error) {
+      console.error(`[YjsWS] Error validating share token:`, error)
+      return undefined
+    }
+  }
+
   private generateConnectionId(): string {
     return `conn_${randomUUID()}`
   }

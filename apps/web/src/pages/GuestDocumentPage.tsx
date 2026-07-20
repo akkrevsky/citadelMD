@@ -41,6 +41,7 @@ export function GuestDocumentPage() {
         <CollaborativeEditor
           documentId={documentData.id}
           readOnly={isReadOnly}
+          shareToken={token}
         />
       </div>
     </div>
