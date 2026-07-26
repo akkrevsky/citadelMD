@@ -15,7 +15,7 @@
 }
 
 .editor-wrapper .cm-editor .cm-scroller {
-  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-family: var(--font-mono);
 }
 
 .editor-wrapper .cm-editor.cm-focused {

@@ -42,7 +42,6 @@ export function ShareDialog({ documentId, onClose }: ShareDialogProps) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // fallback
       const input = document.createElement('input')
       input.value = shareUrl
       document.body.appendChild(input)
@@ -55,30 +54,21 @@ export function ShareDialog({ documentId, onClose }: ShareDialogProps) {
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.4)',
-    }}>
-      <div style={{
-        background: '#fff', borderRadius: '8px', padding: '24px',
-        minWidth: '400px', maxWidth: '500px', boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
-      }}>
-        <h3 style={{ margin: '0 0 16px' }}>Share Document</h3>
+    <div className="share-overlay" onClick={onClose}>
+      <div className="share-dialog" onClick={(e) => e.stopPropagation()}>
+        <h3>Share Document</h3>
 
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', color: '#64748b' }}>Permission</label>
-          <select value={permission} onChange={e => setPermission(e.target.value as 'READ' | 'WRITE')}
-            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}>
+        <div className="share-field">
+          <label>Permission</label>
+          <select value={permission} onChange={(e) => setPermission(e.target.value as 'READ' | 'WRITE')}>
             <option value="READ">Read only</option>
             <option value="WRITE">Can edit</option>
           </select>
         </div>
 
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '0.85rem', color: '#64748b' }}>Expires in</label>
-          <select value={ttlHours} onChange={e => setTtlHours(Number(e.target.value))}
-            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}>
+        <div className="share-field">
+          <label>Expires in</label>
+          <select value={ttlHours} onChange={(e) => setTtlHours(Number(e.target.value))}>
             <option value={1}>1 hour</option>
             <option value={24}>24 hours</option>
             <option value={72}>3 days</option>
@@ -87,26 +77,21 @@ export function ShareDialog({ documentId, onClose }: ShareDialogProps) {
           </select>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-          <button onClick={handleCreate} disabled={loading}
-            style={{ flex: 1, padding: '8px 16px', cursor: 'pointer', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px' }}>
+        <div className="share-actions">
+          <button className="btn btn-primary" onClick={handleCreate} disabled={loading}>
             {loading ? 'Creating...' : 'Create Link'}
           </button>
-          <button onClick={onClose}
-            style={{ padding: '8px 16px', cursor: 'pointer', background: '#f1f5f9', border: '1px solid #ddd', borderRadius: '4px' }}>
+          <button className="btn" onClick={onClose}>
             Close
           </button>
         </div>
 
-        {error && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{error}</p>}
+        {error && <p className="error-message">{error}</p>}
 
         {shareUrl && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px',
-            padding: '8px', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-            <input readOnly value={shareUrl}
-              style={{ flex: 1, padding: '6px', border: 'none', background: 'transparent', fontSize: '0.85rem' }} />
-            <button onClick={handleCopy}
-              style={{ padding: '6px 12px', cursor: 'pointer', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+          <div className="share-url-box">
+            <input readOnly value={shareUrl} />
+            <button className="btn btn-primary btn-sm" onClick={handleCopy}>
               {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>

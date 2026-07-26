@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
-import { searchKeymap } from '@codemirror/search'
+import { searchKeymap, openSearchPanel, closeSearchPanel } from '@codemirror/search'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
@@ -12,21 +12,21 @@ import { WebsocketProvider } from 'y-websocket'
 
 // Syntax highlighting theme (stays same for dark/light; CSS vars handle background)
 const cmHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: '#ff7b72' },
-  { tag: tags.string, color: '#a5d6ff' },
+  { tag: tags.keyword, color: 'var(--cm-keyword)' },
+  { tag: tags.string, color: 'var(--cm-string)' },
   { tag: tags.comment, color: 'var(--color-text-muted)', fontStyle: 'italic' },
-  { tag: tags.variableName, color: '#ffa657' },
-  { tag: tags.function(tags.variableName), color: '#d2a8ff' },
-  { tag: tags.typeName, color: '#ffa657' },
-  { tag: tags.tagName, color: '#7ee787' },
-  { tag: tags.attributeName, color: '#ffa657' },
-  { tag: tags.attributeValue, color: '#a5d6ff' },
-  { tag: tags.number, color: '#79c0ff' },
-  { tag: tags.bool, color: '#ff7b72' },
-  { tag: tags.null, color: '#ff7b72' },
+  { tag: tags.variableName, color: 'var(--cm-attr)' },
+  { tag: tags.function(tags.variableName), color: 'var(--cm-function)' },
+  { tag: tags.typeName, color: 'var(--cm-type)' },
+  { tag: tags.tagName, color: 'var(--cm-tag)' },
+  { tag: tags.attributeName, color: 'var(--cm-attr)' },
+  { tag: tags.attributeValue, color: 'var(--cm-string)' },
+  { tag: tags.number, color: 'var(--cm-number)' },
+  { tag: tags.bool, color: 'var(--cm-bool)' },
+  { tag: tags.null, color: 'var(--cm-null)' },
   { tag: tags.link, color: 'var(--color-primary)' },
   { tag: tags.url, color: 'var(--color-primary)', textDecoration: 'underline' },
-  { tag: tags.heading, color: '#79c0ff', fontWeight: 'bold' },
+  { tag: tags.heading, color: 'var(--cm-heading)', fontWeight: 'bold' },
   { tag: tags.strong, color: 'var(--color-text)', fontWeight: 'bold' },
   { tag: tags.emphasis, color: 'var(--color-text)', fontStyle: 'italic' },
   { tag: tags.strikethrough, color: 'var(--color-text-muted)', textDecoration: 'line-through' },
@@ -143,6 +143,7 @@ interface CollaborativeEditorProps {
   onCursorChange?: (line: number, col: number) => void
   onDocStats?: (stats: { words: number; chars: number; lines: number }) => void
   onConnectionChange?: (status: 'connected' | 'connecting' | 'disconnected') => void
+  onScrollRatio?: (ratio: number) => void
 }
 
 export function CollaborativeEditor({
@@ -154,6 +155,7 @@ export function CollaborativeEditor({
   onCursorChange,
   onDocStats,
   onConnectionChange,
+  onScrollRatio,
 }: CollaborativeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -262,34 +264,93 @@ export function CollaborativeEditor({
       onDocStats(calcStats(ytext.toString()))
     }
 
-    // Listen for insert-at-cursor events from toolbar
-    function handleInsertAtCursor(e: Event) {
-      const detail = (e as CustomEvent).detail as { text: string }
-      if (!detail?.text) return
+    // Listen for format-command events from toolbar
+    function handleFormatCommand(e: Event) {
+      const detail = (e as CustomEvent).detail as Record<string, unknown>
+      if (!detail) return
+      const v = viewRef.current!
+      const { from, to } = v.state.selection.main
 
-      if (detail.text === '__undo__') {
-        undo(viewRef.current!)
+      if (detail.action === 'undo') { undo(v); return }
+      if (detail.action === 'redo') { redo(v); return }
+      if (detail.action === 'find') { openSearchPanel(v); return }
+
+      if (detail.action === 'wrap' && detail.wrapper) {
+        const wrapper = detail.wrapper as string | { left: string; right: string }
+        const left = typeof wrapper === 'string' ? wrapper : wrapper.left
+        const right = typeof wrapper === 'string' ? wrapper : wrapper.right
+
+        if (from !== to) {
+          // Wrap selected text
+          const selected = v.state.sliceDoc(from, to)
+          v.dispatch({
+            changes: { from, to, insert: `${left}${selected}${right}` },
+            selection: { anchor: from, head: to + left.length + right.length },
+            scrollIntoView: true,
+          })
+        } else {
+          const ph = (detail.placeholder as string) || 'text'
+          v.dispatch({
+            changes: { from, insert: `${left}${ph}${right}` },
+            selection: { anchor: from + left.length, head: from + left.length + ph.length },
+            scrollIntoView: true,
+          })
+        }
         return
       }
 
-      if (detail.text === '__redo__') {
-        redo(viewRef.current!)
+      if (detail.action === 'prefix' && detail.prefix) {
+        const prefix = detail.prefix as string
+        const line = v.state.doc.lineAt(from)
+        if (from !== to) {
+          // Prefix each selected line
+          const selected = v.state.sliceDoc(from, to)
+          const lines = selected.split('\n')
+          const newLines = lines.map((l) => prefix + l).join('\n')
+          v.dispatch({
+            changes: { from, to, insert: newLines },
+            selection: { anchor: from, head: from + newLines.length },
+            scrollIntoView: true,
+          })
+        } else {
+          const ph = (detail.placeholder as string) || ''
+          v.dispatch({
+            changes: { from: line.from, insert: prefix + (ph || line.text) + '\n' },
+            selection: { anchor: line.from + prefix.length, head: line.from + prefix.length + (ph || line.text).length },
+            scrollIntoView: true,
+          })
+        }
         return
       }
 
-      // Insert text at cursor position
-      viewRef.current!.dispatch({
-        changes: { from: viewRef.current!.state.selection.main.head, insert: detail.text },
-        selection: { anchor: viewRef.current!.state.selection.main.head + detail.text.length },
-        scrollIntoView: true,
-      })
+      if (detail.action === 'insert' && detail.placeholder) {
+        v.dispatch({
+          changes: { from, insert: detail.placeholder as string },
+          selection: { anchor: from + (detail.placeholder as string).length },
+          scrollIntoView: true,
+        })
+      }
     }
 
-    window.document.addEventListener('insert-at-cursor', handleInsertAtCursor)
+    window.document.addEventListener('format-command', handleFormatCommand)
+
+    // Scroll sync: emit scroll ratio
+    let scrollHandler: (() => void) | undefined
+    if (onScrollRatio) {
+      scrollHandler = () => {
+        const scroller = view.scrollDOM
+        const ratio = scroller.scrollHeight > scroller.clientHeight
+          ? scroller.scrollTop / (scroller.scrollHeight - scroller.clientHeight)
+          : 0
+        onScrollRatio(ratio)
+      }
+      view.scrollDOM.addEventListener('scroll', scrollHandler)
+    }
 
     // Cleanup
     return () => {
-      window.document.removeEventListener('insert-at-cursor', handleInsertAtCursor)
+      window.document.removeEventListener('format-command', handleFormatCommand)
+      if (scrollHandler) view.scrollDOM.removeEventListener('scroll', scrollHandler)
       provider.destroy()
       view.destroy()
     }

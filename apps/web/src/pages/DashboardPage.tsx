@@ -2,12 +2,18 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
 
+export interface DashboardContext {
+  selectedFolderId: string | null
+  setSelectedFolderId: (id: string | null) => void
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [tree, setTree] = useState<TreeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [treeLoading, setTreeLoading] = useState(true)
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
 
   useEffect(() => {
     api
@@ -39,8 +45,9 @@ export default function DashboardPage() {
         return (
           <div key={item.id}>
             <div
-              className="tree-item folder"
+              className={`tree-item folder${selectedFolderId === item.id ? ' active' : ''}`}
               style={{ paddingLeft: `${1 + depth * 1}rem` }}
+              onClick={() => setSelectedFolderId(item.id)}
             >
               {item.name}
             </div>
@@ -129,7 +136,7 @@ export default function DashboardPage() {
 
       {/* Main content */}
       <main className="main-area">
-        <Outlet />
+        <Outlet context={{ selectedFolderId, setSelectedFolderId } satisfies DashboardContext} />
       </main>
     </div>
   )

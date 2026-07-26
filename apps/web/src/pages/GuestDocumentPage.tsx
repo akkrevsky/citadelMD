@@ -11,8 +11,8 @@ export function GuestDocumentPage() {
   useEffect(() => {
     if (!token) return
     fetch(`/api/shares/${token}/document`)
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (data.document) {
           setDocumentData(data.document)
         } else {
@@ -24,18 +24,18 @@ export function GuestDocumentPage() {
   }, [token])
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>
-  if (error) return <div style={{ padding: '40px', textAlign: 'center', color: '#dc2626' }}>{error}</div>
+  if (error) return <div style={{ padding: '40px', textAlign: 'center' }} className="error-message">{error}</div>
   if (!documentData) return <div style={{ padding: '40px', textAlign: 'center' }}>Document not found</div>
 
   const isReadOnly = documentData.permission === 'READ'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <span style={{ fontSize: '0.8rem', background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px' }}>
+    <div className="guest-document">
+      <div className="guest-header">
+        <span className="guest-badge">
           Shared {isReadOnly ? 'Read-only' : 'Editable'}
         </span>
-        <h1 style={{ margin: 0, fontSize: '1.2rem', flex: 1 }}>{documentData.title}</h1>
+        <h1>{documentData.title}</h1>
       </div>
       <div style={{ flex: 1 }}>
         <CollaborativeEditor
