@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 import { api } from '../api-client'
+import type { DashboardContext } from './DashboardPage'
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const { selectedFolderId } = useOutletContext<DashboardContext>()
   const [showCreate, setShowCreate] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [creating, setCreating] = useState(false)
@@ -16,7 +18,7 @@ export default function HomePage() {
     setError('')
     try {
       const tree = await api.getTree()
-      const rootId = tree.length > 0 ? tree[0].id : 'root'
+      const rootId = selectedFolderId ?? (tree.length > 0 ? tree[0].id : 'root')
       const doc = await api.createDocument(rootId, newTitle.trim())
       navigate(`/documents/${doc.id}/edit`)
     } catch (err: unknown) {

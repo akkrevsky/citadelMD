@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, type UserRecord } from '../api-client'
+import { ConfirmModal } from '../components/ConfirmModal'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserRecord[]>([])
@@ -14,6 +15,7 @@ export default function AdminUsersPage() {
   const [newDisplayName, setNewDisplayName] = useState('')
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
 
   function loadUsers() {
     setLoading(true)
@@ -57,8 +59,13 @@ export default function AdminUsersPage() {
   }
 
   async function handleDeactivate(id: string) {
-    if (!window.confirm('Deactivate this user?')) return
+    setDeactivatingId(id)
+  }
 
+  async function confirmDeactivate() {
+    if (!deactivatingId) return
+    const id = deactivatingId
+    setDeactivatingId(null)
     try {
       await api.deactivateUser(id)
       loadUsers()
@@ -189,6 +196,15 @@ export default function AdminUsersPage() {
           </table>
         )}
       </div>
+      {deactivatingId && (
+        <ConfirmModal
+          title="Deactivate User"
+          message="Are you sure you want to deactivate this user?"
+          confirmLabel="Deactivate"
+          onConfirm={confirmDeactivate}
+          onCancel={() => setDeactivatingId(null)}
+        />
+      )}
     </div>
   )
 }

@@ -187,6 +187,13 @@ class ApiClient {
     })
   }
 
+  updateDocument(id: string, data: { title?: string }) {
+    return this.request<Document>(`/documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
   // Create document in folder
   createDocument(folderId: string, title: string) {
     return this.request<Document>(`/folders/${folderId}/documents`, {

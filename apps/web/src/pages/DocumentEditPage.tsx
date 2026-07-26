@@ -6,6 +6,9 @@ import { EditorToolbar, type ViewMode } from '../components/EditorToolbar.js'
 import { StatusBar } from '../components/StatusBar.js'
 import { TabBar } from '../components/TabBar.js'
 import { UploadIndicator } from '../components/UploadIndicator.js'
+import { ShareDialog } from '../components/ShareDialog.js'
+import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
+import { ConfirmModal } from '../components/ConfirmModal.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
 import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
@@ -26,25 +29,32 @@ export function DocumentEditPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
+  const [editedTitle, setEditedTitle] = useState('')
   const [isCommitting, setIsCommitting] = useState(false)
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [showExcalidraw, setShowExcalidraw] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const [toasts, setToasts] = useState<ToastData[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isConnected, setIsConnected] = useState(false)
+  const [scrollRatio, setScrollRatio] = useState(0)
 
   // Document stats
   const [stats, setStats] = useState({ words: 0, chars: 0, lines: 0 })
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 })
+  const [splitRatio, setSplitRatio] = useState(0.5)
+  const resizeRef = useRef<{ dragging: boolean; startX: number; startRatio: number }>({ dragging: false, startX: 0, startRatio: 0.5 })
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   // Preview content - debounced to avoid re-render on every keystroke
   const [previewContent, setPreviewContent] = useState('')
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout>>()
 
-  function handleInsertAtCursor(text: string): void {
-    window.document.dispatchEvent(new CustomEvent('insert-at-cursor', { detail: { text } }))
-  }
+  const handleInsertAtCursor = useCallback((text: string) => {
+    window.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'insert', placeholder: text } }))
+  }, [])
 
   const { uploadState, handlePaste, handleDrop, handleDragOver, uploadFile } = useFileUpload({
     documentId: id!,
@@ -53,7 +63,7 @@ export function DocumentEditPage() {
 
   useEffect(() => {
     if (!id) {
-      navigate('/dashboard')
+      navigate('/')
       return
     }
 
@@ -95,61 +105,62 @@ export function DocumentEditPage() {
   }, [content])
 
   const handleFormat = useCallback((type: string) => {
-    // Simple format insertions (will be refined with actual CM6 commands later)
+    const detail: Record<string, unknown> = {}
     switch (type) {
       case 'undo':
-        handleInsertAtCursor('__undo__')
-        break
       case 'redo':
-        handleInsertAtCursor('__redo__')
+        detail.action = type
         break
       case 'bold':
-        handleInsertAtCursor('**bold text**')
+        detail.action = 'wrap'; detail.wrapper = '**'; detail.placeholder = 'bold text'
         break
       case 'italic':
-        handleInsertAtCursor('*italic text*')
+        detail.action = 'wrap'; detail.wrapper = '*'; detail.placeholder = 'italic text'
         break
       case 'strikethrough':
-        handleInsertAtCursor('~~strikethrough~~')
-        break
-      case 'h1':
-        handleInsertAtCursor('# Heading 1\n\n')
-        break
-      case 'h2':
-        handleInsertAtCursor('## Heading 2\n\n')
-        break
-      case 'h3':
-        handleInsertAtCursor('### Heading 3\n\n')
+        detail.action = 'wrap'; detail.wrapper = '~~'; detail.placeholder = 'strikethrough'
         break
       case 'code':
-        handleInsertAtCursor('`code`')
+        detail.action = 'wrap'; detail.wrapper = '`'; detail.placeholder = 'code'
+        break
+      case 'h1':
+        detail.action = 'prefix'; detail.prefix = '# '; detail.placeholder = 'Heading 1'
+        break
+      case 'h2':
+        detail.action = 'prefix'; detail.prefix = '## '; detail.placeholder = 'Heading 2'
+        break
+      case 'h3':
+        detail.action = 'prefix'; detail.prefix = '### '; detail.placeholder = 'Heading 3'
         break
       case 'quote':
-        handleInsertAtCursor('> quote\n\n')
+        detail.action = 'prefix'; detail.prefix = '> '; detail.placeholder = 'quote'
         break
       case 'ul':
-        handleInsertAtCursor('- item\n- item\n- item\n\n')
+        detail.action = 'prefix'; detail.prefix = '- '; detail.placeholder = 'item'
         break
       case 'ol':
-        handleInsertAtCursor('1. item\n2. item\n3. item\n\n')
+        detail.action = 'prefix'; detail.prefix = '1. '; detail.placeholder = 'item'
         break
       case 'task':
-        handleInsertAtCursor('- [ ] task\n- [ ] task\n- [ ] task\n\n')
+        detail.action = 'prefix'; detail.prefix = '- [ ] '; detail.placeholder = 'task'
         break
       case 'link':
-        handleInsertAtCursor('[link text](https://)')
+        detail.action = 'wrap'; detail.wrapper = {'left':'[', 'right':'](https://)'}; detail.placeholder = 'link text'
         break
       case 'image':
-        handleInsertAtCursor('![alt text](https://)')
+        detail.action = 'wrap'; detail.wrapper = {'left':'![', 'right':'](https://)'}; detail.placeholder = 'alt text'
         break
       case 'table':
-        handleInsertAtCursor('| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n\n')
+        detail.action = 'insert'
+        detail.placeholder = '| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n\n'
         break
       case 'hr':
-        handleInsertAtCursor('\n---\n\n')
+        detail.action = 'insert'
+        detail.placeholder = '\n---\n\n'
         break
     }
-  }, [handleInsertAtCursor])
+    window.dispatchEvent(new CustomEvent('format-command', { detail }))
+  }, [])
 
   const handleCursorChange = useCallback((line: number, col: number) => {
     setCursorPos({ line, col })
@@ -179,7 +190,7 @@ export function DocumentEditPage() {
 
   const handleCommit = async () => {
     if (!commitMessage.trim()) {
-      alert('Please enter a commit message')
+      createToast(setToasts, 'Please enter a commit message', 'error')
       return
     }
 
@@ -188,37 +199,96 @@ export function DocumentEditPage() {
       await api.commitDocument(id!, commitMessage)
       setCommitMessage('')
       setHasChanges(false)
-      alert('Changes committed successfully!')
+      createToast(setToasts, 'Changes committed successfully!', 'success')
     } catch (error) {
       console.error('Commit failed:', error)
-      if (error instanceof Error) {
-        alert('Commit failed: ' + error.message)
-      }
+      createToast(setToasts, 'Commit failed: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error')
     } finally {
       setIsCommitting(false)
     }
   }
 
   const handleDiscard = async () => {
-    if (!confirm('Are you sure you want to discard all changes?')) {
-      return
-    }
+    setShowDiscardConfirm(true)
+  }
 
+  const confirmDiscard = async () => {
+    setShowDiscardConfirm(false)
     try {
       setIsDiscarding(true)
       await api.discardDocument(id!)
       setHasChanges(false)
-      alert('Changes discarded successfully!')
+      createToast(setToasts, 'Changes discarded', 'info')
       await loadDocument()
     } catch (error) {
       console.error('Discard failed:', error)
-      if (error instanceof Error) {
-        alert('Discard failed: ' + error.message)
-      }
+      createToast(setToasts, 'Discard failed: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error')
     } finally {
       setIsDiscarding(false)
     }
   }
+
+  // Initialize editedTitle when doc loads
+  useEffect(() => {
+    if (doc) setEditedTitle(doc.title)
+  }, [doc?.title])
+
+  // Save title on blur
+  async function handleTitleBlur() {
+    if (doc && editedTitle !== doc.title && editedTitle.trim()) {
+      try {
+        await api.updateDocument(id!, { title: editedTitle.trim() })
+        setDoc({ ...doc, title: editedTitle.trim() })
+      } catch {
+        setEditedTitle(doc.title) // revert on error
+      }
+    }
+  }
+
+  // Resize handle drag
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!resizeRef.current.dragging) return
+      const container = document.querySelector('.editor-with-preview')
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      const newRatio = (e.clientX - rect.left) / rect.width
+      const clamped = Math.max(0.2, Math.min(0.8, newRatio))
+      setSplitRatio(clamped)
+    }
+    function onMouseUp() {
+      resizeRef.current.dragging = false
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
+
+  // App-level keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const mod = e.ctrlKey || e.metaKey
+      if (!mod) return
+
+      if (e.key === 's') {
+        e.preventDefault()
+        if (hasChanges) handleSave()
+      } else if (e.key === 'h') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'find' } }))
+      } else if (e.key === 'e') {
+        e.preventDefault()
+        const cycle: ViewMode[] = ['source', 'split', 'preview']
+        const idx = cycle.indexOf(viewMode)
+        setViewMode(cycle[(idx + 1) % cycle.length])
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewMode, hasChanges, handleSave])
 
   if (loading) {
     return (
@@ -232,7 +302,7 @@ export function DocumentEditPage() {
     return (
       <div className="document-edit-page">
         <div className="error">{error}</div>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+        <button onClick={() => navigate('/')}>Back to Dashboard</button>
       </div>
     )
   }
@@ -241,7 +311,7 @@ export function DocumentEditPage() {
     return (
       <div className="document-edit-page">
         <div className="error">Document not found</div>
-        <button onClick={() => navigate('/dashboard')}>Back to Dashboard</button>
+        <button onClick={() => navigate('/')}>Back to Dashboard</button>
       </div>
     )
   }
@@ -258,7 +328,13 @@ export function DocumentEditPage() {
       {/* Header with document info and commit controls */}
       <div className="document-header">
         <div className="document-info">
-          <h1>{doc.title}</h1>
+          <input
+            className="document-title-input"
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+          />
           <span className="document-path">{doc.filePath}</span>
         </div>
 
@@ -299,6 +375,9 @@ export function DocumentEditPage() {
             {isDiscarding ? 'Discarding...' : 'Discard'}
           </button>
 
+          <button onClick={() => setShowShareDialog(true)}>
+            Share
+          </button>
           <button onClick={() => navigate('/')}>
             Dashboard
           </button>
@@ -310,7 +389,7 @@ export function DocumentEditPage() {
         tabs={[{ id: id!, label: doc.title, path: doc.filePath }]}
         activeTabId={id!}
         onTabSelect={() => {}}
-        onTabClose={() => navigate('/dashboard')}
+        onTabClose={() => navigate('/')}
       />
 
       {/* Editor toolbar */}
@@ -367,13 +446,14 @@ export function DocumentEditPage() {
               onConnectionChange={(status) => {
                 setIsConnected(status === 'connected')
               }}
+              onScrollRatio={setScrollRatio}
             />
           </div>
         )}
 
         {viewMode === 'split' && (
           <div className="editor-with-preview">
-            <div className="code-editor-pane">
+            <div className="code-editor-pane" style={{ flex: `0 0 ${splitRatio * 100}%` }}>
               <CollaborativeEditor
                 documentId={id!}
                 initialContent={content}
@@ -383,11 +463,20 @@ export function DocumentEditPage() {
                 onConnectionChange={(status) => {
                   setIsConnected(status === 'connected')
                 }}
+                onScrollRatio={setScrollRatio}
               />
             </div>
-            <div className="preview-pane">
+            <div
+              className={`resize-handle${resizeRef.current.dragging ? ' dragging' : ''}`}
+              onMouseDown={(e) => {
+                resizeRef.current.dragging = true
+                resizeRef.current.startX = e.clientX
+                resizeRef.current.startRatio = splitRatio
+              }}
+            />
+            <div className="preview-pane" style={{ flex: `0 0 ${(1 - splitRatio) * 100}%` }}>
               <div className="preview-wrapper">
-                <MarkdownPreview content={previewContent || content} />
+                <MarkdownPreview content={previewContent || content} scrollRatio={scrollRatio} />
               </div>
             </div>
           </div>
@@ -428,6 +517,28 @@ export function DocumentEditPage() {
           </div>
         </div>
       )}
+
+      {/* Share dialog */}
+      {showShareDialog && (
+        <ShareDialog
+          documentId={id!}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
+
+      {/* Discard confirm */}
+      {showDiscardConfirm && (
+        <ConfirmModal
+          title="Discard Changes"
+          message="Are you sure you want to discard all unsaved changes?"
+          confirmLabel="Discard"
+          onConfirm={confirmDiscard}
+          onCancel={() => setShowDiscardConfirm(false)}
+        />
+      )}
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onRemove={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
     </div>
   )
 }

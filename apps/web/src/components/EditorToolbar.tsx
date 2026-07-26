@@ -66,6 +66,15 @@ export function EditorToolbar({ viewMode, onViewModeChange, onFormat, fileName, 
         <button className="toolbar-btn" title="Horizontal rule" onClick={() => onFormat('hr')}><IconHorizontalRule /></button>
       </div>
 
+      {/* Find button */}
+      <div className="toolbar-group">
+        <button className="toolbar-btn" title="Find (Ctrl+H)" onClick={() => onFormat('find')}>
+          <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+            <path d="M10.68 11.74a6 6 0 0 1-7.92-7.92 6 6 0 0 1 7.92 7.92Zm-1.06-1.06a4.5 4.5 0 1 0-6.36-6.36 4.5 4.5 0 0 0 6.36 6.36ZM11.5 10.38l3.97 3.97a.75.75 0 0 1-1.06 1.06l-3.97-3.97.21-.21-.24.24Z"/>
+          </svg>
+        </button>
+      </div>
+
       {/* View mode toggle */}
       <div className="toolbar-right">
         <div className="view-mode-group">

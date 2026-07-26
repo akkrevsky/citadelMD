@@ -50,7 +50,10 @@ export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions) {
         xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             const result = JSON.parse(xhr.responseText)
-            const markdown = `![${result.upload.fileName}](${result.upload.url})`
+            const isImage = file.type.startsWith('image/')
+            const markdown = isImage
+              ? `![${result.upload.fileName}](${result.upload.url})`
+              : `[${result.upload.fileName}](${result.upload.url})`
             onInsert?.(markdown)
             setUploadState({ uploading: false, progress: 100, error: null })
             resolve()

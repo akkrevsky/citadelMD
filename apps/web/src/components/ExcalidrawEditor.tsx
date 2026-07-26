@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 interface ExcalidrawEditorProps {
   onSave: (svgDataUrl: string) => void
@@ -12,15 +12,17 @@ function ExcalidrawEditor({ onSave, onClose }: ExcalidrawEditorProps) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
-  useState(() => {
-    import('@excalidraw/excalidraw').then((mod) => {
-      setExcalidraw(() => mod.Excalidraw)
-      setLoading(false)
-    }).catch((err: Error) => {
-      setLoadError('Failed to load Excalidraw: ' + err.message)
-      setLoading(false)
-    })
-  })
+  useEffect(() => {
+    import('@excalidraw/excalidraw')
+      .then((mod) => {
+        setExcalidraw(() => mod.Excalidraw)
+        setLoading(false)
+      })
+      .catch((err: Error) => {
+        setLoadError('Failed to load Excalidraw: ' + err.message)
+        setLoading(false)
+      })
+  }, [])
 
   const handleExport = useCallback(async () => {
     if (!elRef) return
@@ -42,23 +44,33 @@ function ExcalidrawEditor({ onSave, onClose }: ExcalidrawEditorProps) {
     }
   }, [elRef, onSave])
 
-  if (loading) return <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Loading diagram editor...</div>
-  if (loadError) return <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>{loadError}</div>
+  if (loading)
+    return (
+      <div className="excalidraw-loading">
+        Loading diagram editor...
+      </div>
+    )
+  if (loadError)
+    return (
+      <div className="excalidraw-error">{loadError}</div>
+    )
   if (!Excalidraw) return null
 
   return (
-    <div style={{ height: '500px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+    <div className="excalidraw-container">
       <Excalidraw
         excalidrawAPI={(api: any) => setElRef(api)}
-        UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false }, tools: { image: false }, dockedSidebarBreakpoint: 0 }}
+        UIOptions={{
+          canvasActions: { loadScene: false, saveToActiveFile: false },
+          tools: { image: false },
+          dockedSidebarBreakpoint: 0,
+        }}
       />
-      <div style={{ display: 'flex', gap: '8px', padding: '8px 12px', borderTop: '1px solid #e2e8f0', background: '#fafafa' }}>
-        <button onClick={handleExport} disabled={isSaving}
-          style={{ padding: '6px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+      <div className="excalidraw-footer">
+        <button className="btn btn-primary btn-sm" onClick={handleExport} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Insert into document'}
         </button>
-        <button onClick={onClose}
-          style={{ padding: '6px 16px', background: '#f1f5f9', border: '1px solid #ddd', borderRadius: '4px', cursor: 'pointer' }}>
+        <button className="btn btn-sm" onClick={onClose}>
           Cancel
         </button>
       </div>
