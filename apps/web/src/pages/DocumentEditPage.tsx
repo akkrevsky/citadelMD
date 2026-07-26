@@ -228,10 +228,10 @@ export function DocumentEditPage() {
     }
   }
 
-  // Initialize editedTitle when doc loads
+  // Initialize editedTitle when doc loads and keep in sync
   useEffect(() => {
     if (doc) setEditedTitle(doc.title)
-  }, [doc?.title])
+  }, [doc])
 
   // Save title on blur
   async function handleTitleBlur() {
@@ -330,10 +330,11 @@ export function DocumentEditPage() {
         <div className="document-info">
           <input
             className="document-title-input"
-            value={editedTitle}
+            value={editedTitle || doc.title}
             onChange={(e) => setEditedTitle(e.target.value)}
             onBlur={handleTitleBlur}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            placeholder="Document title"
           />
           <span className="document-path">{doc.filePath}</span>
         </div>
