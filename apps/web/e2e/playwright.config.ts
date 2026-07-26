@@ -19,18 +19,9 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'chromium',
-      use: { 
-        ...devices['Desktop Chrome'],
-        // Add fallback options for WSL environments
-        launchOptions: {
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-          ]
-        }
+      name: 'firefox',
+      use: {
+        ...devices['Desktop Firefox'],
       },
     },
   ],
