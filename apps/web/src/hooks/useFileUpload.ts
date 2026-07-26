@@ -34,8 +34,10 @@ export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions) {
 
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      // documentId MUST come before file — @fastify/multipart only
+      // exposes fields that appear before the first file in the stream.
       formData.append('documentId', documentId)
+      formData.append('file', file)
 
       const xhr = new XMLHttpRequest()
 

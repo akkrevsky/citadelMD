@@ -25,6 +25,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
   })
 
   app.post('/api/uploads', { preHandler: [verifyAuth] }, async (request, reply) => {
+    try {
     const userId = request.user!.sub
 
     const data = await request.file()
@@ -121,6 +122,13 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
         fileName: upload.fileName,
         sizeBytes: upload.sizeBytes,
       },
+    }
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      request.log.error({ err: e.message, stack: e.stack }, 'upload failed')
+      const status = e.statusCode ?? 500
+      reply.code(status)
+      return { error: { code: 'UPLOAD_ERROR', message: e.message } }
     }
   })
 
