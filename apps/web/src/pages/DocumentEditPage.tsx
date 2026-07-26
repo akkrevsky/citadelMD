@@ -53,7 +53,7 @@ export function DocumentEditPage() {
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   const handleInsertAtCursor = useCallback((text: string) => {
-    window.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'insert', placeholder: text } }))
+    window.document.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'insert', placeholder: text } }))
   }, [])
 
   const { uploadState, handlePaste, handleDrop, handleDragOver, uploadFile } = useFileUpload({
@@ -159,7 +159,7 @@ export function DocumentEditPage() {
         detail.placeholder = '\n---\n\n'
         break
     }
-    window.dispatchEvent(new CustomEvent('format-command', { detail }))
+    window.document.dispatchEvent(new CustomEvent('format-command', { detail }))
   }, [])
 
   const handleCursorChange = useCallback((line: number, col: number) => {
@@ -278,7 +278,7 @@ export function DocumentEditPage() {
         if (hasChanges) handleSave()
       } else if (e.key === 'h') {
         e.preventDefault()
-        window.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'find' } }))
+        window.document.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'find' } }))
       } else if (e.key === 'e') {
         e.preventDefault()
         const cycle: ViewMode[] = ['source', 'split', 'preview']
