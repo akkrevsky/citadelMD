@@ -115,6 +115,12 @@ Three authentication methods, all handled in [apps/backend/src/middleware/auth.t
 
 The `authMiddleware` (aliased as `verifyAuth`) runs first, trying cookie → Bearer → ApiKey. The `requireRole(...roles)` middleware runs after auth to enforce role-based access (ADMIN, EDITOR, VIEWER). The `apiKeyMiddleware` handles the ApiKey path specifically and attaches the user to the request.
 
+**Two distinct access-control layers** — don't conflate them:
+- **Role-based** (`requireRole` in [auth.ts](apps/backend/src/middleware/auth.ts)) — coarse global roles (ADMIN/EDITOR/VIEWER), applied as route middleware.
+- **Folder-level** (`assertFolderPermission` in [authz.ts](apps/backend/src/services/authz.ts)) — fine-grained per-document enforcement via inherited folder permissions (see [Folder permission inheritance](#folder-permission-inheritance)). Called inside the document, share, and upload route handlers. ADMINs bypass it; missing or insufficient access throws 404 (not-found leaks nothing) / 403 respectively. `getDocumentFolderId()` resolves a document's owning folder first.
+
+Route handlers therefore do their own `assertFolderPermission` checks rather than relying solely on `requireRole`.
+
 ### Frontend architecture
 
 React SPA with React Router, plain CSS (CSS custom properties for theming), no CSS framework.
@@ -190,7 +196,7 @@ Folder permissions use a "walk ancestors, take max" algorithm ([apps/backend/src
 Contains code used by backend, yjs-server, and mcp-server:
 - `types.ts` — shared TypeScript interfaces (User, Folder, Document, API error shape)
 - `git-service.ts` — `simple-git` wrapper (commit, discard, restore, diff, log, show)
-- `file-lock.ts` — Redis-based distributed lock (`acquireLock(path)`, `releaseLock(path)`) used to serialize file access between backend git operations and yjs-server auto-save
+- `file-lock.ts` — Redis-based distributed file lock. `createFileLock(redis)` → `withFileLock(path, fn)` runs `fn` while holding `lock:file:<path>` (used by backend); `createTryFileLock` is the non-blocking variant yjs-server uses for auto-save, so both sides serialize on the same path
 
 ## Where things live
 
@@ -200,11 +206,12 @@ Contains code used by backend, yjs-server, and mcp-server:
 - `apps/backend/prisma/schema.prisma` — database schema (users, folders, documents, folder_permissions, shares, uploads, user_quotas)
 - `apps/backend/src/services/document.service.ts` — **core business logic**: create, commit, discard, restore, rename, delete documents; coordinates Yjs flush/reload with git operations
 - `apps/backend/src/services/auth.service.ts` — JWT sign/verify, password hashing (bcrypt)
-- `apps/backend/src/services/folder.service.ts` — folder CRUD with git path management
+- `apps/backend/src/services/folder.service.ts` — folder CRUD with git path management; `getEffectivePermission()` resolves inherited folder access
+- `apps/backend/src/services/authz.ts` — folder-level authorization: `assertFolderPermission()` / `getDocumentFolderId()` enforce inherited folder permissions on the document, share, and upload routes
 - `apps/backend/src/services/user.service.ts` — user CRUD, API key generation
 - `apps/backend/src/services/minio.service.ts` — MinIO/S3 upload/download/presigned URLs
 - `apps/backend/src/services/git-init.ts` — `ensureGitRepo()` auto-initializes the repo on startup
-- `apps/backend/src/services/redis-lock.service.ts` — Redis distributed lock for coordinating backend ↔ yjs-server file access
+- `apps/backend/src/services/lock.ts` — shared singleton Redis client + `withFileLock` (from `createFileLock`) that coordinates backend git operations ↔ yjs-server auto-save on the `lock:file:<path>` key
 - `apps/backend/src/middleware/auth.ts` — JWT cookie authentication middleware
 - `apps/yjs-server/src/ws-server.ts` — WebSocket server (port 1235), connection lifecycle, update broadcast, share token validation
 - `apps/yjs-server/src/yjs-manager.ts` — Y.Doc lifecycle (init from file, auto-save, flush, reload), 5s auto-save timer
