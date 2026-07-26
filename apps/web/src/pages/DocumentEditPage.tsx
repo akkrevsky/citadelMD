@@ -109,6 +109,7 @@ export function DocumentEditPage() {
     switch (type) {
       case 'undo':
       case 'redo':
+      case 'find':
         detail.action = type
         break
       case 'bold':

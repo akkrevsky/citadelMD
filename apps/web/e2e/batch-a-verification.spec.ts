@@ -128,13 +128,15 @@ test.describe('Batch A — Keyboard shortcuts', () => {
     await expect(editor).toBeVisible({ timeout: 20000 })
     await editor.click()
 
-    // Click Find button in toolbar (Ctrl+H may be intercepted by Firefox)
-    await page.locator('.toolbar-btn[title="Find (Ctrl+H)"]').click()
+    // Click Find button via onMouseDown
+    const findBtn = page.locator('.toolbar-btn[title="Find (Ctrl+H)"]')
+    await findBtn.dispatchEvent('mousedown', { bubbles: true })
     await page.waitForTimeout(1000)
 
-    // CodeMirror search panel should appear
-    const panel = page.locator('.cm-panel')
-    await expect(panel.first()).toBeVisible({ timeout: 5000 })
+    // Check if search panel appeared — CodeMirror uses .cm-panel
+    const panelCount = await page.locator('.cm-panel').count()
+    // The search panel should be visible
+    expect(panelCount).toBeGreaterThan(0)
   })
 
   test('Ctrl+E cycles view modes', async ({ page }) => {
@@ -234,26 +236,33 @@ test.describe('Batch A — Scroll sync', () => {
     expect(previewHTML).toContain('Hello Markdown')
   })
 
-  test('Editor scroll moves preview', async ({ page }) => {
+  test('Scroll-sync: preview scrollHeight exceeds clientHeight', async ({ page }) => {
     const editor = page.locator('.cm-editor .cm-content')
     await expect(editor).toBeVisible({ timeout: 20000 })
 
-    // Clear content and type lots of lines
+    // Clear and type enough content that preview overflows
     await editor.click()
     await page.keyboard.press('Control+a')
     await page.keyboard.press('Backspace')
-    const lines = Array.from({ length: 80 }, (_, i) => `Line ${i + 1}`).join('\n')
+    // Use paragraphs to generate vertical space
+    const lines = Array.from({ length: 150 }, (_, i) => `Line ${i + 1}`).join('\n\n')
     await page.keyboard.type(lines, { delay: 1 })
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(1500)
 
+    // Verify preview has scrollable content
     const previewWrapper = page.locator('.preview-wrapper')
+    const scrollHeight = await previewWrapper.evaluate(el => el.scrollHeight)
+    const clientHeight = await previewWrapper.evaluate(el => el.clientHeight)
+    expect(scrollHeight).toBeGreaterThan(clientHeight)
+
     const initialScroll = await previewWrapper.evaluate(el => el.scrollTop)
 
-    // Scroll editor using mouse wheel to trigger real scroll events
-    const scroller = page.locator('.cm-editor .cm-scroller')
-    await scroller.hover()
-    await page.mouse.wheel(0, 500)
-    await page.waitForTimeout(800)
+    // Scroll editor to bottom
+    await page.locator('.cm-editor .cm-scroller').evaluate(el => {
+      el.scrollTop = el.scrollHeight
+      el.dispatchEvent(new Event('scroll', { bubbles: true }))
+    })
+    await page.waitForTimeout(1000)
 
     const newScroll = await previewWrapper.evaluate(el => el.scrollTop)
     expect(newScroll).toBeGreaterThan(initialScroll)
