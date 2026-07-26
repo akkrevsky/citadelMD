@@ -13,10 +13,12 @@ export function MarkdownPreview({ content, className = '', scrollRatio }: Markdo
 
   useEffect(() => {
     if (scrollRatio == null || scrollRatio < 0 || !containerRef.current) return
-    const el = containerRef.current
-    const maxScroll = el.scrollHeight - el.clientHeight
+    // The scrollable container is the parent .preview-wrapper, not .markdown-preview itself
+    const scrollable = containerRef.current.parentElement
+    if (!scrollable) return
+    const maxScroll = scrollable.scrollHeight - scrollable.clientHeight
     if (maxScroll > 0) {
-      el.scrollTop = scrollRatio * maxScroll
+      scrollable.scrollTop = scrollRatio * maxScroll
     }
   }, [scrollRatio])
 
