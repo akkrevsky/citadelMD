@@ -158,4 +158,46 @@ export class GitService {
   async remove(filePath: string): Promise<void> {
     await this.git.rm([filePath, '-r'])
   }
+
+  /**
+   * Full-text search across markdown files using git grep.
+   * Returns matches with file path, line number, and matched content.
+   * If a folder path is provided, search is scoped to that directory.
+   */
+  async grep(
+    query: string,
+    folderPath?: string,
+  ): Promise<Array<{ filePath: string; line: number; match: string }>> {
+    const searchPath = folderPath ?? '.'
+    const escapedQuery = query.replace(/\\/g, '\\\\')
+    try {
+      // Search under folderPath if given, otherwise whole repo.
+      // The repo stores only Markdown files, so no extension filter needed.
+      const pathspec = folderPath ? `${folderPath}/` : '.'
+      const raw = await this.git.raw([
+        'grep',
+        '-n',
+        '-i',
+        '-e',
+        escapedQuery,
+        '--',
+        pathspec,
+      ])
+      if (!raw.trim()) return []
+      return raw
+        .trim()
+        .split('\n')
+        .map((line) => {
+          const m = line.match(/^([^:]+):(\d+):(.*)/)
+          if (!m) return null
+          const [, filePath, lineNum, match] = m
+          return { filePath, line: parseInt(lineNum, 10), match }
+        })
+        .filter(Boolean) as Array<{ filePath: string; line: number; match: string }>
+    } catch (err: unknown) {
+      // git grep exits with code 1 when there are no matches
+      if ((err as { code?: number })?.code === 1) return []
+      throw err
+    }
+  }
 }

@@ -539,6 +539,113 @@ export class DocumentService {
     }
   }
 
+  /**
+   * Full-text search across all documents using git grep.
+   * Returns matches enriched with document metadata.
+   */
+  async searchDocuments(
+    query: string,
+    folderId?: string,
+  ): Promise<Array<{ documentId: string; filePath: string; line: number; match: string; title: string; folderId: string }>> {
+    let folderGitPath: string | undefined
+    if (folderId) {
+      const folder = await prisma.folder.findUnique({
+        where: { id: folderId },
+        select: { gitPath: true },
+      })
+      if (!folder) return []
+      folderGitPath = folder.gitPath
+    }
+
+    const results = await this.git.grep(query, folderGitPath)
+    if (results.length === 0) return []
+
+    // Look up documents by filePath
+    const filePaths = [...new Set(results.map((r) => r.filePath))]
+    const documents = await prisma.document.findMany({
+      where: { filePath: { in: filePaths } },
+      select: { id: true, filePath: true, title: true, folderId: true },
+    })
+    const docByPath = new Map(documents.map((d) => [d.filePath, d]))
+
+    return results
+      .map((r) => {
+        const doc = docByPath.get(r.filePath)
+        if (!doc) return null
+        return { documentId: doc.id, filePath: r.filePath, line: r.line, match: r.match, title: doc.title, folderId: doc.folderId }
+      })
+      .filter(Boolean) as Array<{
+        documentId: string
+        filePath: string
+        line: number
+        match: string
+        title: string
+        folderId: string
+      }>
+  }
+
+  /**
+   * Update document content by overwriting the working tree file.
+   * Checks for active Yjs sessions (409 Conflict if active).
+   * Optionally commits the change.
+   */
+  async updateDocumentContent(
+    id: string,
+    content: string,
+    userId: string,
+    commit: boolean = false,
+    message?: string,
+  ): Promise<{ sha?: string }> {
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { id: true, filePath: true, title: true },
+    })
+
+    if (!document) {
+      throw Object.assign(new Error('Document not found'), { statusCode: 404 })
+    }
+
+    const fullPath = path.join(this.getGitRepoPath(), document.filePath)
+
+    return withFileLock(document.filePath, async () => {
+      // Check for active Yjs sessions
+      if (await this.hasActiveYjsSession(`doc-${id}`)) {
+        throw Object.assign(
+          new Error('Document has an active editing session — cannot overwrite via API'),
+          { statusCode: 409 },
+        )
+      }
+
+      // Overwrite the file
+      await fs.writeFile(fullPath, content, 'utf8')
+
+      if (commit) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { login: true, gitName: true, gitEmail: true },
+        })
+
+        if (!user) {
+          throw Object.assign(new Error('User not found'), { statusCode: 404 })
+        }
+
+        const author: GitAuthor = {
+          name: user.gitName ?? user.login,
+          email: user.gitEmail ?? `${user.login}@mdcollab.local`,
+        }
+
+        const commitMsg = message ?? `Update ${document.title} via MCP`
+        const result = await this.git.commit(commitMsg, author, [document.filePath])
+        if (!result) {
+          throw new Error('No changes to commit')
+        }
+        return { sha: result.sha }
+      }
+
+      return {}
+    })
+  }
+
   // ========== Helpers ==========
 
   private getGitRepoPath(): string {

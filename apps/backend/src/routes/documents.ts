@@ -3,6 +3,7 @@ import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { getDocumentService } from '../services/document.service.js'
 import { assertFolderPermission, getDocumentFolderId } from '../services/authz.js'
 import { getEffectivePermission } from '../services/folder.service.js'
+import type { UserRole } from '@citadelmd/shared'
 
 export async function documentRoutes(app: FastifyInstance): Promise<void> {
   // All document routes require authentication
@@ -166,6 +167,121 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       const status = e.statusCode ?? 500
       return reply.status(status).send({
         error: { code: status === 404 ? 'DOCUMENT_NOT_FOUND' : 'DOCUMENT_DELETE_ERROR', message: e.message },
+      })
+    }
+  })
+
+  // ========== Search ==========
+
+  // GET /api/documents/search?q=<query>&folderId=<optional> — full-text search via git grep
+  app.get('/api/documents/search', async (request, reply) => {
+    const { q, folderId } = request.query as { q?: string; folderId?: string }
+
+    if (!q || typeof q !== 'string' || q.trim().length === 0) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Search query (q) is required' },
+      })
+    }
+
+    if (q.length > 500) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Search query must be 500 characters or fewer' },
+      })
+    }
+
+    try {
+      const results = await documentService.searchDocuments(q.trim(), folderId || undefined)
+
+      // Filter by folder permissions (admins see everything)
+      const role = request.user!.role as UserRole
+      const userId = request.user!.sub
+
+      if (role === 'ADMIN') {
+        return reply.status(200).send({ results })
+      }
+
+      // Batch permission checks per folder
+      const folderIds = [...new Set(results.map((r) => r.folderId))]
+      const permCache = new Map<string, boolean>()
+      for (const fid of folderIds) {
+        const perm = await getEffectivePermission(userId, fid)
+        permCache.set(fid, perm !== null) // any permission (even VIEW) is enough
+      }
+
+      const filtered = results.filter((r) => permCache.get(r.folderId))
+      return reply.status(200).send({ results: filtered })
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      return reply.status(e.statusCode ?? 500).send({
+        error: { code: 'SEARCH_ERROR', message: e.message },
+      })
+    }
+  })
+
+  // PUT /api/documents/:id/content — overwrite working tree content (MCP)
+  app.put('/api/documents/:id/content', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { content, commit, message } = request.body as {
+      content?: string
+      commit?: boolean
+      message?: string
+    }
+
+    if (typeof content !== 'string') {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'content string is required' },
+      })
+    }
+
+    if (content.length > 10 * 1024 * 1024) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Content exceeds 10 MB limit' },
+      })
+    }
+
+    if (commit && (!message || typeof message !== 'string' || message.trim().length === 0)) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Commit message is required when commit=true' },
+      })
+    }
+
+    if (message && message.length > 500) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Commit message must be 500 characters or fewer' },
+      })
+    }
+
+    try {
+      const folderId = await getDocumentFolderId(id)
+      if (!folderId) {
+        return reply.status(404).send({
+          error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' },
+        })
+      }
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
+
+      const result = await documentService.updateDocumentContent(
+        id,
+        content,
+        request.user!.sub,
+        commit ?? false,
+        message?.trim(),
+      )
+
+      return reply.status(200).send(result)
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      const status = e.statusCode ?? 500
+      let code: string
+      if (status === 404) {
+        code = 'DOCUMENT_NOT_FOUND'
+      } else if (status === 409) {
+        code = 'YJS_SESSION_ACTIVE'
+      } else {
+        code = 'UPDATE_CONTENT_ERROR'
+      }
+      return reply.status(status).send({
+        error: { code, message: e.message },
       })
     }
   })
