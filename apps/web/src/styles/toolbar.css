@@ -129,6 +129,11 @@
   filter: brightness(1.15);
 }
 
+.history-toggle-btn.active {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
 .view-mode-btn svg {
   width: 14px;
   height: 14px;

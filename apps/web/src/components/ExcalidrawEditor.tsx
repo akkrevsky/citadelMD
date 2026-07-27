@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import '@excalidraw/excalidraw/index.css'
 
 interface ExcalidrawEditorProps {
   onSave: (svgDataUrl: string) => void

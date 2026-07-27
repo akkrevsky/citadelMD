@@ -9,6 +9,9 @@ interface EditorToolbarProps {
   fileName?: string
   theme?: 'dark' | 'light'
   onToggleTheme?: () => void
+  showHistory?: boolean
+  onToggleHistory?: () => void
+  historyEnabled?: boolean
 }
 
 // Helper: mousedown handler to preserve editor selection before formatting
@@ -98,9 +101,11 @@ export function EditorToolbar({
   viewMode,
   onViewModeChange,
   onFormat,
-  fileName,
   theme = 'dark',
   onToggleTheme,
+  showHistory = false,
+  onToggleHistory,
+  historyEnabled = true,
 }: EditorToolbarProps) {
   // Use onMouseDown to preserve editor selection (fires before blur)
   const handle = useFormatHandler(onFormat)
@@ -220,6 +225,22 @@ export function EditorToolbar({
             Preview
           </button>
         </div>
+
+        <div className="toolbar-divider" />
+
+        {onToggleHistory && (
+          <button
+            className={`view-mode-btn history-toggle-btn${showHistory ? ' active' : ''}`}
+            onClick={onToggleHistory}
+            disabled={!historyEnabled}
+            title={historyEnabled ? 'История версий' : 'История недоступна (режим Snapshot)'}
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+              <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm-.75 2.5a.75.75 0 0 1 1.5 0v2.69l1.78 1.03a.75.75 0 1 1-.75 1.3l-2-1.16A.75.75 0 0 1 7.25 8V5.5Z" />
+            </svg>
+            История
+          </button>
+        )}
 
         <div className="toolbar-divider" />
 

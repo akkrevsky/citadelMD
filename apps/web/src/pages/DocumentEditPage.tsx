@@ -23,6 +23,8 @@ import '../styles/tabbar.css'
 
 const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
 
+const LAST_DOC_KEY = 'citadelmd-last-opened-id'
+
 export function DocumentEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -90,6 +92,10 @@ export function DocumentEditPage() {
 
     loadDocument()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  useEffect(() => {
+    if (id) localStorage.setItem(LAST_DOC_KEY, id)
   }, [id])
 
   const loadDocument = async () => {
@@ -355,46 +361,34 @@ export function DocumentEditPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [viewMode, hasChanges, handleSave])
 
-  if (loading) {
-    return (
-      <div className="document-edit-page">
-        <div className="loading">Loading document...</div>
-      </div>
-    )
-  }
+  const readTime = Math.max(1, Math.round(stats.words / 200))
+  const usesGit = doc?.folderMode !== 'SNAPSHOT'
+  const folderPath =
+    doc && doc.filePath.includes('/')
+      ? doc.filePath.slice(0, doc.filePath.lastIndexOf('/'))
+      : ''
+  const fullTitlePath = doc ? (folderPath ? `${folderPath}/${doc.title}` : doc.title) : ''
 
-  if (error) {
-    return (
-      <div className="document-edit-page">
+  let body: React.ReactNode
+  if (loading) {
+    body = <div className="loading">Loading document...</div>
+  } else if (error) {
+    body = (
+      <>
         <div className="error">{error}</div>
         <button onClick={() => navigate('/')}>Back to Dashboard</button>
-      </div>
+      </>
     )
-  }
-
-  if (!doc) {
-    return (
-      <div className="document-edit-page">
+  } else if (!doc) {
+    body = (
+      <>
         <div className="error">Document not found</div>
         <button onClick={() => navigate('/')}>Back to Dashboard</button>
-      </div>
+      </>
     )
-  }
-
-  const readTime = Math.max(1, Math.round(stats.words / 200))
-  const usesGit = doc.folderMode !== 'SNAPSHOT'
-  const folderPath = doc.filePath.includes('/')
-    ? doc.filePath.slice(0, doc.filePath.lastIndexOf('/'))
-    : ''
-  const fullTitlePath = folderPath ? `${folderPath}/${doc.title}` : doc.title
-
-  return (
-    <div
-      className="document-edit-page"
-      onPaste={handlePaste as unknown as React.ClipboardEventHandler}
-      onDrop={handleDrop as unknown as React.DragEventHandler}
-      onDragOver={handleDragOver as unknown as React.DragEventHandler}
-    >
+  } else {
+    body = (
+      <>
       {/* Header with document info and commit controls */}
       <div className="document-header">
         <div className="document-info">
@@ -460,8 +454,11 @@ export function DocumentEditPage() {
             Share
           </button>
           {usesGit && (
-            <button onClick={() => setShowHistory(!showHistory)}>
-              {showHistory ? 'Close History' : 'History'}
+            <button
+              className={showHistory ? 'btn btn-sm btn-primary' : ''}
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              {showHistory ? 'Скрыть историю' : 'История'}
             </button>
           )}
           <button onClick={() => navigate('/')}>
@@ -477,6 +474,9 @@ export function DocumentEditPage() {
         onFormat={handleFormat}
         theme={theme}
         onToggleTheme={toggleTheme}
+        showHistory={showHistory}
+        onToggleHistory={() => setShowHistory((v) => !v)}
+        historyEnabled={true}
       />
 
       {/* Attach file button bar */}
@@ -564,22 +564,47 @@ export function DocumentEditPage() {
         </div>
       </div>
 
-      {/* Status bar */}
-      <StatusBar
+      </>
+    )
+  }
 
-        words={stats.words}
-        chars={stats.chars}
-        lines={stats.lines}
-        cursorLine={cursorPos.line}
-        cursorCol={cursorPos.col}
-        fileName={doc.title + '.md'}
-        isConnected={isConnected}
-        connectionStatus={isConnected ? 'connected' : 'disconnected'}
-        readTime={readTime}
-        hasUncommittedChanges={hasChanges}
-      />
+  return (
+    <div
+      className="document-edit-page"
+      onPaste={handlePaste as unknown as React.ClipboardEventHandler}
+      onDrop={handleDrop as unknown as React.DragEventHandler}
+      onDragOver={handleDragOver as unknown as React.DragEventHandler}
+    >
+      <div className={`document-main-row${showHistory ? ' history-open' : ''}`}>
+        <div className="document-body">{body}</div>
 
-      {/* Excalidraw modal */}
+        {showHistory && id && (
+          <aside className="history-panel" aria-label="История версий">
+            <div className="history-panel-header">
+              <h3>История версий</h3>
+              <button
+                type="button"
+                className="history-panel-close"
+                onClick={() => setShowHistory(false)}
+                title="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+            <div className="history-panel-body">
+              {usesGit ? (
+                <RevisionTree documentId={id} onRestore={handleRestore} />
+              ) : (
+                <p className="revision-empty">
+                  История доступна только в папках с Git-версионированием.
+                  Откройте настройки папки (⚙) и выберите режим Git.
+                </p>
+              )}
+            </div>
+          </aside>
+        )}
+      </div>
+
       {showExcalidraw && (
         <div className="modal-overlay" onClick={() => setShowExcalidraw(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -593,15 +618,13 @@ export function DocumentEditPage() {
         </div>
       )}
 
-      {/* Share dialog */}
-      {showShareDialog && (
+      {showShareDialog && id && (
         <ShareDialog
-          documentId={id!}
+          documentId={id}
           onClose={() => setShowShareDialog(false)}
         />
       )}
 
-      {/* Discard confirm */}
       {showDiscardConfirm && (
         <ConfirmModal
           title="Discard Changes"
@@ -612,25 +635,20 @@ export function DocumentEditPage() {
         />
       )}
 
-      {/* Revision history panel */}
-      {showHistory && (
-        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ padding: '16px', borderBottom: '1px solid var(--color-border)' }}>
-              <h3 style={{ margin: 0 }}>Version History</h3>
-            </div>
-            <div style={{ maxHeight: '60vh', overflowY: 'auto', padding: '16px' }}>
-              <RevisionTree
-                documentId={id!}
-                onRestore={handleRestore}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      <StatusBar
+        words={stats.words}
+        chars={stats.chars}
+        lines={stats.lines}
+        cursorLine={cursorPos.line}
+        cursorCol={cursorPos.col}
+        fileName={doc ? `${doc.title}.md` : undefined}
+        isConnected={isConnected}
+        connectionStatus={isConnected ? 'connected' : 'disconnected'}
+        readTime={doc ? readTime : undefined}
+        hasUncommittedChanges={hasChanges}
+      />
 
-      {/* Toast notifications */}
-      <ToastContainer toasts={toasts} onRemove={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+      <ToastContainer toasts={toasts} onRemove={(toastId) => setToasts((prev) => prev.filter((t) => t.id !== toastId))} />
     </div>
   )
 }
