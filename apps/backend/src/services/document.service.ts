@@ -300,7 +300,11 @@ export class DocumentService {
       if (parentSha) {
         return await this.git.diff(document.filePath, parentSha, sha)
       }
-      return await this.git.diffFromRoot(document.filePath, sha)
+      try {
+        return await this.git.diff(document.filePath, `${sha}^`, sha)
+      } catch {
+        return await this.git.diffFromRoot(document.filePath, sha)
+      }
     } catch {
       return null
     }
