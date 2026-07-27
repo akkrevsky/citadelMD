@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api-client.js'
+import './RevisionTree.css'
 
 export interface Revision {
   sha: string
@@ -30,35 +31,74 @@ function countDiffLines(diff: string): { added: number; removed: number } {
   return { added, removed }
 }
 
+function DiffView({ diff }: { diff: string }) {
+  return (
+    <pre className="revision-diff">
+      {diff.split('\n').map((line, i) => (
+        <div
+          key={i}
+          className={
+            line.startsWith('+') && !line.startsWith('+++')
+              ? 'diff-line-added'
+              : line.startsWith('-') && !line.startsWith('---')
+                ? 'diff-line-removed'
+                : 'diff-line-context'
+          }
+        >
+          {line || '\n'}
+        </div>
+      ))}
+    </pre>
+  )
+}
+
 export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
   const [revisions, setRevisions] = useState<Revision[]>([])
-  const [expandedSha, setExpandedSha] = useState<string | null>(null)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [diffs, setDiffs] = useState<Map<string, DiffStats>>(new Map())
   const [diffLoading, setDiffLoading] = useState<string | null>(null)
   const [restoringSha, setRestoringSha] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [uncommittedDiff, setUncommittedDiff] = useState<string | null>(null)
 
   useEffect(() => {
     loadRevisions()
+    loadUncommittedDiff()
   }, [documentId])
 
   async function loadRevisions() {
+    setLoadError(null)
     try {
       const res = await api.getRevisions(documentId)
       setRevisions(res.revisions ?? [])
-    } catch {
+    } catch (err) {
       setRevisions([])
+      setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить историю')
     }
   }
 
-  async function toggleDiff(sha: string) {
-    if (expandedSha === sha) {
-      setExpandedSha(null)
+  async function loadUncommittedDiff() {
+    try {
+      const res = await api.getDiff(documentId)
+      setUncommittedDiff(res.diff?.trim() ? res.diff : null)
+    } catch {
+      setUncommittedDiff(null)
+    }
+  }
+
+  async function toggleDiff(key: string, sha?: string) {
+    if (expandedKey === key) {
+      setExpandedKey(null)
       return
     }
 
-    setExpandedSha(sha)
+    setExpandedKey(key)
 
-    if (diffs.has(sha)) return
+    if (key === 'uncommitted') {
+      return
+    }
+
+    if (!sha || diffs.has(sha)) return
 
     setDiffLoading(sha)
     try {
@@ -69,8 +109,16 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
         next.set(sha, { ...stats, diff })
         return next
       })
-    } catch {
-      // ignore
+    } catch (err) {
+      setDiffs((prev) => {
+        const next = new Map(prev)
+        next.set(sha, {
+          added: 0,
+          removed: 0,
+          diff: err instanceof Error ? err.message : 'Не удалось загрузить diff',
+        })
+        return next
+      })
     } finally {
       setDiffLoading(null)
     }
@@ -81,6 +129,7 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
     try {
       await api.restoreToRevision(documentId, sha)
       await loadRevisions()
+      await loadUncommittedDiff()
       onRestore(sha)
     } catch (err) {
       console.error('Restore failed:', err)
@@ -89,26 +138,58 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
     }
   }
 
-  if (revisions.length === 0) {
-    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>No revisions yet</p>
+  if (loadError) {
+    return <p className="revision-empty">{loadError}</p>
+  }
+
+  if (revisions.length === 0 && !uncommittedDiff) {
+    return (
+      <p className="revision-empty">
+        Коммитов пока нет. Сохраните или закоммитьте документ, чтобы появилась история.
+      </p>
+    )
   }
 
   return (
     <div className="revision-tree">
+      {uncommittedDiff && (
+        <div className={`revision-entry uncommitted${expandedKey === 'uncommitted' ? ' expanded' : ''}`}>
+          <div
+            className="revision-header"
+            onClick={() => toggleDiff('uncommitted')}
+          >
+            <span className="revision-chevron">{expandedKey === 'uncommitted' ? '▼' : '▶'}</span>
+            <span className="revision-sha">WIP</span>
+            <span className="revision-message">Незакоммиченные изменения</span>
+            <span className="revision-diff-stats">
+              {(() => {
+                const s = countDiffLines(uncommittedDiff)
+                return (
+                  <>
+                    {s.added > 0 && <span className="diff-added">+{s.added}</span>}
+                    {s.removed > 0 && <span className="diff-removed">-{s.removed}</span>}
+                  </>
+                )
+              })()}
+            </span>
+          </div>
+          {expandedKey === 'uncommitted' && <DiffView diff={uncommittedDiff} />}
+        </div>
+      )}
+
       {revisions.map((rev) => {
-        const isExpanded = expandedSha === rev.sha
+        const isExpanded = expandedKey === rev.sha
         const diff = diffs.get(rev.sha)
 
         return (
           <div key={rev.sha} className={`revision-entry${isExpanded ? ' expanded' : ''}`}>
             <div
               className="revision-header"
-              onClick={() => toggleDiff(rev.sha)}
-              style={{ cursor: 'pointer' }}
+              onClick={() => toggleDiff(rev.sha, rev.sha)}
             >
               <span className="revision-chevron">{isExpanded ? '▼' : '▶'}</span>
               <span className="revision-sha">{rev.sha.substring(0, 7)}</span>
-              <span className="revision-message">{rev.message}</span>
+              <span className="revision-message" title={rev.message}>{rev.message}</span>
               <span className="revision-author">{rev.authorName}</span>
               <span className="revision-date">{formatRevisionDate(rev.date)}</span>
               {diff && (
@@ -128,26 +209,12 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
                     onClick={() => handleRestore(rev.sha)}
                     disabled={restoringSha === rev.sha}
                   >
-                    {restoringSha === rev.sha ? 'Restoring…' : 'Restore to this version'}
+                    {restoringSha === rev.sha ? 'Откат…' : 'Откатить к этой версии'}
                   </button>
                 </div>
-                {diff?.diff && (
-                  <pre className="revision-diff">
-                    {diff.diff.split('\n').map((line, i) => (
-                      <div
-                        key={i}
-                        className={
-                          line.startsWith('+') && !line.startsWith('+++')
-                            ? 'diff-line-added'
-                            : line.startsWith('-') && !line.startsWith('---')
-                              ? 'diff-line-removed'
-                              : 'diff-line-context'
-                        }
-                      >
-                        {line || '\n'}
-                      </div>
-                    ))}
-                  </pre>
+                {diff?.diff && <DiffView diff={diff.diff} />}
+                {diffLoading === rev.sha && !diff && (
+                  <p className="revision-empty">Загрузка diff…</p>
                 )}
               </div>
             )}

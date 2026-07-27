@@ -1,0 +1,35 @@
+import type { TreeItem } from '../api-client'
+
+export function findFirstDocument(items: TreeItem[]): string | null {
+  for (const item of items) {
+    if (item.type === 'document') return item.id
+    if (item.children) {
+      const found = findFirstDocument(item.children)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+export function findFirstFolder(items: TreeItem[]): string | null {
+  for (const item of items) {
+    if (item.type === 'folder') return item.id
+    if (item.children) {
+      const found = findFirstFolder(item.children)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+export function collectDocumentIds(items: TreeItem[]): Set<string> {
+  const ids = new Set<string>()
+  function walk(nodes: TreeItem[]) {
+    for (const item of nodes) {
+      if (item.type === 'document') ids.add(item.id)
+      if (item.children) walk(item.children)
+    }
+  }
+  walk(items)
+  return ids
+}

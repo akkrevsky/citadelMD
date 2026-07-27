@@ -11,7 +11,10 @@ import { TabsProvider, useTabs } from '../contexts/TabsContext'
 import { FolderSettingsDialog } from '../components/FolderSettingsDialog'
 import { AssetsPanel } from '../components/AssetsPanel'
 import { TabContextMenu } from '../components/TabContextMenu'
+import { findFirstDocument, collectDocumentIds, findFirstFolder } from '../utils/tree'
 import logo from '../assets/logo.png'
+
+const LAST_DOC_KEY = 'citadelmd-last-opened-id'
 
 export interface DashboardContext {
   selectedFolderId: string | null
@@ -105,7 +108,26 @@ function DashboardWithTabs() {
     return () => window.removeEventListener('document-saved', onSaved)
   }, [refreshTree])
 
+  // On app open at dashboard root, navigate to last or first document
+  useEffect(() => {
+    if (!user || treeLoading) return
+    if (location.pathname !== '/') return
+
+    const docIds = collectDocumentIds(tree)
+    if (docIds.size === 0) return
+
+    const lastDocId = localStorage.getItem(LAST_DOC_KEY)
+    const targetId =
+      lastDocId && docIds.has(lastDocId) ? lastDocId : findFirstDocument(tree)
+
+    if (!targetId) return
+
+    localStorage.setItem(LAST_DOC_KEY, targetId)
+    navigate(`/documents/${targetId}/edit`, { replace: true, state: { preview: true } })
+  }, [user, treeLoading, tree, location.pathname, navigate])
+
   function openDoc(item: TreeItem, pin: boolean) {
+    localStorage.setItem(LAST_DOC_KEY, item.id)
     const path = `/documents/${item.id}/edit`
     const tab = { id: item.id, title: item.name }
     if (pin) {
@@ -134,7 +156,7 @@ function DashboardWithTabs() {
   async function handleCreateDoc(e: React.FormEvent) {
     e.preventDefault()
     if (!newDocTitle.trim()) return
-    const folderId = selectedFolderId ?? findFirstFolderId(tree)
+    const folderId = selectedFolderId ?? findFirstFolder(tree)
     if (!folderId) return
     try {
       const doc = await api.createDocument(folderId, newDocTitle.trim())
@@ -148,16 +170,6 @@ function DashboardWithTabs() {
     }
   }
 
-  function findFirstFolderId(items: TreeItem[]): string | null {
-    for (const item of items) {
-      if (item.type === 'folder') return item.id
-      if (item.children) {
-        const found = findFirstFolderId(item.children)
-        if (found) return found
-      }
-    }
-    return null
-  }
 
   function renderTree(items: TreeItem[], depth = 0, parentPath = '') {
     if (!Array.isArray(items)) return null
@@ -247,7 +259,7 @@ function DashboardWithTabs() {
         aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
         aria-expanded={!sidebarCollapsed}
       >
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14">
           <path d="M2 4h12M2 8h12M2 12h12" strokeLinecap="round" />
         </svg>
       </button>
