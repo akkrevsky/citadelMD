@@ -1,10 +1,31 @@
 import { WebSocketServer, WebSocket } from 'ws'
 import type { RawData } from 'ws'
 import * as Y from 'yjs'
+import * as encoding from 'lib0/encoding'
+import * as decoding from 'lib0/decoding'
+import * as syncProtocol from 'y-protocols/sync'
 import { randomUUID } from 'crypto'
 import { YjsManager } from './yjs-manager.js'
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://backend:3000'
+
+// y-websocket protocol message types (see yjs/y-websocket).
+// Each WS frame is: [messageType, ...payload].
+//   messageType 0 = sync:    [0, syncSubType, ...syncPayload]
+//   messageType 1 = awareness
+const messageSync = 0
+const messageAwareness = 1
+
+/** Convert a ws RawData frame into a Uint8Array for lib0/Yjs. */
+function toUint8Array(data: RawData): Uint8Array {
+  if (data instanceof Uint8Array) return data
+  if (Array.isArray(data)) {
+    const buf = Buffer.concat(data)
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+  }
+  const buf = data as ArrayBuffer
+  return new Uint8Array(buf)
+}
 
 export interface ConnectionInfo {
   ws: WebSocket
@@ -90,8 +111,16 @@ export class YjsWebSocketServer {
               const session = this.yjsManager.getDocument(effectiveDocId)
               if (session && ws.readyState === WebSocket.OPEN) {
                 try {
-                  const update = Y.encodeStateAsUpdate(session.ydoc)
-                  ws.send(update)
+                  // Start the y-websocket sync handshake: send sync step1
+                  // (state-vector request) so the client replies with its
+                  // missing updates. The client also sends its own step1,
+                  // which we answer with step2 (server state) in
+                  // handleYjsUpdate. Both directions use the standard
+                  // [messageSync, ...syncProtocol] framing.
+                  const encoder = encoding.createEncoder()
+                  encoding.writeVarUint(encoder, messageSync)
+                  syncProtocol.writeSyncStep1(encoder, session.ydoc)
+                  ws.send(encoding.toUint8Array(encoder))
                 } catch (error) {
                   console.error(`[YjsWS] Error sending initial state to ${connectionId}:`, error)
                   ws.close(1011, 'Server error sending initial state')
@@ -184,27 +213,77 @@ export class YjsWebSocketServer {
     const connection = this.connections.get(connectionId)
     if (!connection) return
 
-    // Skip updates from READ-only connections (guests)
-    if (connection.permission === 'READ') return
-
     const session = this.yjsManager.getDocument(connection.docId)
     if (!session) return
-    
+
+    const uint8 = toUint8Array(data)
+
     try {
-      // Convert RawData to Uint8Array for Yjs
-      const updateArray = data instanceof Buffer ? 
-        new Uint8Array(data) : 
-        new Uint8Array(data as ArrayBuffer)
-      
-      // Apply update to Y.Doc
-      Y.applyUpdate(session.ydoc, updateArray)
-      
-      // Broadcast update to other connections for same document
-      this.broadcastUpdate(connection.docId, data, connectionId)
-      
+      const decoder = decoding.createDecoder(uint8)
+      const messageType = decoding.readVarUint(decoder)
+
+      if (messageType === messageSync) {
+        const encoder = encoding.createEncoder()
+        encoding.writeVarUint(encoder, messageSync)
+        if (connection.permission === 'READ') {
+          // Guests: only answer state-vector requests (step1); never apply
+          // incoming edits (step2/update) so a read-only client cannot mutate
+          // the shared document.
+          if (decoding.peekVarUint(decoder) === syncProtocol.messageYjsSyncStep1) {
+            syncProtocol.readSyncMessage(decoder, encoder, session.ydoc, null)
+            if (encoding.length(encoder) > 1) {
+              this.send(connection.ws, encoding.toUint8Array(encoder))
+            }
+          }
+        } else {
+          // WRITE: apply edits, answer step1 with step2, broadcast updates.
+          const subType = syncProtocol.readSyncMessage(
+            decoder,
+            encoder,
+            session.ydoc,
+            connectionId,
+          )
+          if (encoding.length(encoder) > 1) {
+            this.send(connection.ws, encoding.toUint8Array(encoder))
+          }
+          if (
+            subType === syncProtocol.messageYjsSyncStep2 ||
+            subType === syncProtocol.messageYjsUpdate
+          ) {
+            this.broadcastRaw(connection.docId, uint8, connectionId)
+          }
+        }
+      } else if (messageType === messageAwareness) {
+        // Forward awareness (cursor/presence) to other clients verbatim.
+        this.broadcastRaw(connection.docId, uint8, connectionId)
+      }
+      // Unknown message types are ignored.
     } catch (error) {
-      console.error(`[YjsWS] Error applying update:`, error)
+      console.error(`[YjsWS] Error handling message from ${connectionId}:`, error)
     }
+  }
+
+  /** Send raw bytes to a single open WebSocket. */
+  private send(ws: WebSocket, payload: Uint8Array): void {
+    if (ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(payload)
+      } catch (error) {
+        console.error('[YjsWS] Error sending payload:', error)
+      }
+    }
+  }
+
+  /** Broadcast a pre-framed message to all connections on a doc except one. */
+  private broadcastRaw(docId: string, payload: Uint8Array, excludeConnectionId: string): void {
+    this.connections.forEach((connection, connId) => {
+      if (
+        connId !== excludeConnectionId &&
+        connection.docId === docId
+      ) {
+        this.send(connection.ws, payload)
+      }
+    })
   }
   
   private broadcastUpdate(docId: string, update: RawData, excludeConnectionId: string): void {
