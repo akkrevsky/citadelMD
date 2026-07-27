@@ -2,13 +2,25 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
 import { formatCreatedAt } from '../utils/format'
+import { TabsProvider, useTabs } from '../contexts/TabsContext'
+import { TabBar } from '../components/TabBar'
 
 export interface DashboardContext {
   selectedFolderId: string | null
   setSelectedFolderId: (id: string | null) => void
 }
 
+/** Public wrapper for the dashboard — provides TabsContext. */
 export default function DashboardPage() {
+  return (
+    <TabsProvider>
+      <DashboardWithTabs />
+    </TabsProvider>
+  )
+}
+
+/** Internal component — has access to both sidebar state and tabs. */
+function DashboardWithTabs() {
   const navigate = useNavigate()
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [tree, setTree] = useState<TreeItem[]>([])
@@ -18,6 +30,8 @@ export default function DashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
     localStorage.getItem('citadelmd-sidebar-collapsed') === '1',
   )
+
+  const { openPreview, pinTab, closeTab, allTabs, activeTabId, pinnedTabs, previewTab } = useTabs()
 
   function toggleSidebar() {
     setSidebarCollapsed((prev) => {
@@ -50,6 +64,17 @@ export default function DashboardPage() {
       .finally(() => setTreeLoading(false))
   }, [user])
 
+  function openDoc(item: TreeItem, pin: boolean) {
+    const path = `/documents/${item.id}/edit`
+    const tab = { id: item.id, title: item.name }
+    if (pin) {
+      pinTab(tab)
+    } else {
+      openPreview(tab)
+    }
+    navigate(path)
+  }
+
   function renderTree(items: TreeItem[], depth = 0) {
     if (!Array.isArray(items)) return null
     return items.map((item) => {
@@ -73,15 +98,22 @@ export default function DashboardPage() {
           className="tree-item document"
           style={{ paddingLeft: `${1 + depth * 1}rem` }}
         >
-          <Link
-            to={`/documents/${item.id}/edit`}
+          <a
+            href={`/documents/${item.id}/edit`}
             className="document-link"
+            onClick={(e) => {
+              e.preventDefault()
+              openDoc(item, false) // single click → preview
+            }}
+            onDoubleClick={() => {
+              openDoc(item, true) // double click → pin
+            }}
           >
             <span className="document-name">{item.name}</span>
             {item.createdAt && (
               <span className="doc-created-at">{formatCreatedAt(item.createdAt)}</span>
             )}
-          </Link>
+          </a>
         </div>
       )
     })
@@ -93,7 +125,6 @@ export default function DashboardPage() {
   }
 
   if (loading) return null
-
   if (!user) return null
 
   return (
@@ -162,10 +193,78 @@ export default function DashboardPage() {
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main content area with tab bar */}
       <main className="main-area">
+        <TabBarMain
+          pinnedTabs={pinnedTabs}
+          previewTabId={previewTab?.id ?? null}
+          activeTabId={activeTabId}
+          onSelect={(id) => navigate(`/documents/${id}/edit`)}
+          onClose={(id) => closeTab(id)}
+          onPin={(id) => pinTab({ id, title: previewTab?.title ?? id })}
+        />
         <Outlet context={{ selectedFolderId, setSelectedFolderId } satisfies DashboardContext} />
       </main>
+    </div>
+  )
+}
+
+/**
+ * Tab bar above the document content.
+ * Pinned tabs show with a close button. Preview tabs are italicised.
+ */
+function TabBarMain({
+  pinnedTabs,
+  previewTabId,
+  activeTabId,
+  onSelect,
+  onClose,
+  onPin,
+}: {
+  pinnedTabs: { id: string; title: string }[]
+  previewTabId: string | null
+  activeTabId: string | null
+  onSelect: (id: string) => void
+  onClose: (id: string) => void
+  onPin: (id: string) => void
+}) {
+  const allTabs = [...pinnedTabs, ...(previewTabId ? [{ id: previewTabId, title: '' }] : [])]
+  if (allTabs.length === 0) return null
+
+  return (
+    <div className="tab-bar">
+      {allTabs.map((tab) => {
+        const isPreview = previewTabId === tab.id
+        const isActive = tab.id === activeTabId
+        return (
+          <div
+            key={tab.id}
+            className={`tab-item${isActive ? ' active' : ''}${isPreview ? ' preview' : ''}`}
+            onClick={() => onSelect(tab.id)}
+            title={isPreview ? 'Double-click to pin' : ''}
+            onDoubleClick={() => {
+              if (isPreview) onPin(tab.id)
+            }}
+          >
+            <span className="tab-label">{tab.title || tab.id.slice(0, 8)}</span>
+            {/* Only pinned tabs get a close button */}
+            {pinnedTabs.some((t) => t.id === tab.id) && (
+              <button
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onClose(tab.id)
+                }}
+                title="Close"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+                  <path d="M4.72 4.72a.75.75 0 011.06 0L8 6.94l2.22-2.22a.75.75 0 111.06 1.06L9.06 8l2.22 2.22a.75.75 0 11-1.06 1.06L8 9.06l-2.22 2.22a.75.75 0 01-1.06-1.06L6.94 8 4.72 5.78a.75.75 0 010-1.06z"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

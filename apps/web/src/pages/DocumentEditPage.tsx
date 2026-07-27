@@ -4,7 +4,6 @@ import { CollaborativeEditor } from '../components/CollaborativeEditor.js'
 import { MarkdownPreview } from '../components/MarkdownPreview.js'
 import { EditorToolbar, type ViewMode } from '../components/EditorToolbar.js'
 import { StatusBar } from '../components/StatusBar.js'
-import { TabBar } from '../components/TabBar.js'
 import { UploadIndicator } from '../components/UploadIndicator.js'
 import { ShareDialog } from '../components/ShareDialog.js'
 import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
@@ -12,6 +11,7 @@ import { ConfirmModal } from '../components/ConfirmModal.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
 import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
+import { useTabs } from '../contexts/TabsContext.js'
 import '../styles/editor.css'
 import '../styles/preview.css'
 import '../styles/toolbar.css'
@@ -24,6 +24,7 @@ export function DocumentEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
+  const { openPreview, pinTab, setActive, pinnedTabs } = useTabs()
   const [doc, setDoc] = useState<Document | null>(null)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
@@ -67,8 +68,16 @@ export function DocumentEditPage() {
       return
     }
 
+    // When a document is opened directly (e.g. via URL or Ctrl+click),
+    // register it as a pinned tab if it's not already pinned.
+    const alreadyPinned = pinnedTabs.some((t) => t.id === id)
+    if (!alreadyPinned) {
+      pinTab({ id, title: '' }) // title is loaded later
+    }
+    setActive(id)
+
     loadDocument()
-  }, [id, navigate])
+  }, [id, navigate, pinnedTabs, pinTab, setActive])
 
   const loadDocument = async () => {
     try {
@@ -392,14 +401,6 @@ export function DocumentEditPage() {
           </button>
         </div>
       </div>
-
-      {/* Tab bar */}
-      <TabBar
-        tabs={[{ id: id!, label: doc.title, path: doc.filePath }]}
-        activeTabId={id!}
-        onTabSelect={() => {}}
-        onTabClose={() => navigate('/')}
-      />
 
       {/* Editor toolbar */}
       <EditorToolbar
