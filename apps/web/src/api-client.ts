@@ -9,6 +9,8 @@ export interface CurrentUser {
   login: string
   role: UserRole
   displayName: string | null
+  gitName: string | null
+  gitEmail: string | null
 }
 
 export interface UserRecord {
@@ -137,6 +139,13 @@ class ApiClient {
     return this.request<{ ok: boolean }>('/auth/me/password', {
       method: 'PATCH',
       body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  }
+
+  updateProfile(data: { gitName?: string | null; gitEmail?: string | null; displayName?: string | null }) {
+    return this.request<{ user: CurrentUser }>('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     })
   }
 

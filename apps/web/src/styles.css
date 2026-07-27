@@ -471,6 +471,31 @@ select:focus {
   font-variant-numeric: tabular-nums;
 }
 
+/* Settings sections */
+.settings-theme-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.settings-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.settings-radio input {
+  cursor: pointer;
+}
+
+.settings-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0 0 0.75rem 0;
+}
+
 .tree-item.document .document-info {
   display: flex;
   justify-content: space-between;

@@ -133,7 +133,7 @@ export default function DashboardPage() {
             to="/profile"
             className={({ isActive }) => (isActive ? 'active' : '')}
           >
-            Profile
+            Profile &amp; Settings
           </NavLink>
 
           {/* Folder tree */}

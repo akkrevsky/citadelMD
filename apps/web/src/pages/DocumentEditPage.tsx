@@ -79,6 +79,13 @@ export function DocumentEditPage() {
 
       const contentResponse = await api.exportDocument(id!)
       setContent(contentResponse)
+      // Reset preview + save-detection state for the newly loaded document.
+      // Without this, navigating between documents keeps the previous
+      // document's preview content (stale previewContent is truthy).
+      setPreviewContent(contentResponse)
+      contentRef.current = contentResponse
+      setHasChanges(false)
+      setCommitMessage('')
 
     } catch (error) {
       console.error('Failed to load document:', error)

@@ -227,6 +227,25 @@ describe('api-client', () => {
     })
   })
 
+  describe('updateProfile', () => {
+    it('sends PATCH to /api/auth/me with git identity', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            user: { id: 'u1', login: 'admin', role: 'ADMIN', displayName: null, gitName: 'Admin', gitEmail: 'a@b.c' },
+          }),
+      })
+
+      const result = await api.updateProfile({ gitName: 'Admin', gitEmail: 'a@b.c' })
+      expect(result.user.gitName).toBe('Admin')
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/auth/me')
+      expect(options.method).toBe('PATCH')
+      expect(JSON.parse(options.body)).toEqual({ gitName: 'Admin', gitEmail: 'a@b.c' })
+    })
+  })
+
   describe('listUsers', () => {
     it('returns users array from paginated response', async () => {
       mockFetch.mockResolvedValueOnce({
