@@ -21,10 +21,6 @@ test.describe('Phase 4 — Markdown Extensions', () => {
     await expect(editor).toBeAttached({ timeout: 5000 })
   })
 
-  test('editor toolbar has Draw Diagram button', async ({ page }) => {
-    await expect(page.locator('button:has-text("Draw Diagram")')).toBeAttached({ timeout: 5000 })
-  })
-
   test('editor toolbar has Show Preview button', async ({ page }) => {
     await expect(page.locator('button:has-text("Show Preview")')).toBeAttached({ timeout: 5000 })
   })

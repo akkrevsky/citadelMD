@@ -26,10 +26,13 @@ export interface Folder {
   createdById: string | null
 }
 
+export type DocumentKind = 'MARKDOWN' | 'EXCALIDRAW'
+
 export interface Document {
   id: string
   folderId: string
   title: string
+  kind: DocumentKind
   filePath: string
   createdAt: Date
   updatedAt: Date

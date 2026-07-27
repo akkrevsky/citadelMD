@@ -1363,6 +1363,30 @@ select:focus {
   height: 100%;
 }
 
+.excalidraw-page-canvas {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.excalidraw-canvas {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  position: relative;
+}
+
+.excalidraw-canvas .excalidraw {
+  height: 100%;
+}
+
+.doc-kind-icon {
+  color: var(--color-primary);
+  margin-right: 0.15rem;
+}
+
 .excalidraw-footer {
   display: flex;
   gap: var(--space-sm);

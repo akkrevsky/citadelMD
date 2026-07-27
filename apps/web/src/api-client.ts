@@ -29,6 +29,7 @@ export interface TreeItem {
   id: string
   name: string
   type: 'folder' | 'document'
+  kind?: 'MARKDOWN' | 'EXCALIDRAW'
   createdAt?: string
   updatedAt?: string
   filePath?: string
@@ -48,11 +49,13 @@ export interface FolderNode {
 export interface Document {
   id: string
   title: string
+  kind?: 'MARKDOWN' | 'EXCALIDRAW'
   filePath: string
   createdAt: string
   updatedAt: string
   hasUncommittedChanges?: boolean
   folderMode?: 'GIT' | 'SNAPSHOT'
+  folderId?: string
 }
 
 export interface UploadItem {
@@ -77,6 +80,7 @@ function flattenTree(folders: FolderNode[]): TreeItem[] {
         id: doc.id,
         name: doc.title,
         type: 'document',
+        kind: doc.kind ?? 'MARKDOWN',
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
         filePath: doc.filePath,
@@ -224,6 +228,13 @@ class ApiClient {
     return this.requestText(`/documents/${id}/export`)
   }
 
+  putDocumentContent(id: string, content: string, commit = false, message?: string) {
+    return this.request<{ sha?: string }>(`/documents/${id}/content`, {
+      method: 'PUT',
+      body: JSON.stringify({ content, commit, message }),
+    })
+  }
+
   commitDocument(id: string, message: string) {
     return this.request<{ message: string; updatedAt?: string }>(`/documents/${id}/commit`, {
       method: 'POST',
@@ -268,10 +279,10 @@ class ApiClient {
   }
 
   // Create document in folder
-  createDocument(folderId: string, title: string) {
+  createDocument(folderId: string, title: string, kind: 'MARKDOWN' | 'EXCALIDRAW' = 'MARKDOWN') {
     return this.request<Document>(`/folders/${folderId}/documents`, {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, kind }),
     })
   }
 

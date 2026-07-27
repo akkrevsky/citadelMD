@@ -87,16 +87,22 @@ model FolderPermission {
 
 // =============== Документы ===============
 
+enum DocumentKind {
+  MARKDOWN
+  EXCALIDRAW
+}
+
 model Document {
-  id          String   @id @default(uuid()) @db.Uuid
-  folderId    String   @map("folder_id") @db.Uuid
-  folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  id          String       @id @default(uuid()) @db.Uuid
+  folderId    String       @map("folder_id") @db.Uuid
+  folder      Folder       @relation(fields: [folderId], references: [id], onDelete: Cascade)
   title       String
-  filePath    String   @map("file_path")   // UNIQUE — путь в Git-репо
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  createdById String?  @map("created_by") @db.Uuid
-  createdBy   User?    @relation(fields: [createdById], references: [id])
+  kind        DocumentKind @default(MARKDOWN)
+  filePath    String       @map("file_path")   // UNIQUE — путь в Git-репо
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  createdById String?      @map("created_by") @db.Uuid
+  createdBy   User?        @relation(fields: [createdById], references: [id])
 
   shares      Share[]
   uploads     Upload[]

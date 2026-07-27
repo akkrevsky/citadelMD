@@ -53,7 +53,9 @@ function DashboardWithTabs() {
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingDoc, setCreatingDoc] = useState(false)
+  const [creatingDiagram, setCreatingDiagram] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
+  const [createKind, setCreateKind] = useState<'MARKDOWN' | 'EXCALIDRAW'>('MARKDOWN')
 
   const {
     openPreview,
@@ -159,9 +161,11 @@ function DashboardWithTabs() {
     const folderId = selectedFolderId ?? findFirstFolder(tree)
     if (!folderId) return
     try {
-      const doc = await api.createDocument(folderId, newDocTitle.trim())
+      const doc = await api.createDocument(folderId, newDocTitle.trim(), createKind)
       setNewDocTitle('')
       setCreatingDoc(false)
+      setCreatingDiagram(false)
+      setCreateKind('MARKDOWN')
       await refreshTree()
       pinTab({ id: doc.id, title: doc.title })
       navigate(`/documents/${doc.id}/edit`, { state: { pin: true } })
@@ -231,6 +235,7 @@ function DashboardWithTabs() {
           >
             <span className="document-name">
               {unsaved && <span className="doc-state-marker">*</span>}
+              {item.kind === 'EXCALIDRAW' && <span className="doc-kind-icon" title="Diagram">◈ </span>}
               {item.name}
             </span>
             {item.updatedAt && (
@@ -308,9 +313,32 @@ function DashboardWithTabs() {
                 <div className="tree-actions">
                   <button
                     className="btn btn-sm btn-primary tree-action-btn"
-                    onClick={() => setCreatingDoc((v) => !v)}
+                    onClick={() => {
+                      if (creatingDoc && createKind === 'MARKDOWN') {
+                        setCreatingDoc(false)
+                      } else {
+                        setCreateKind('MARKDOWN')
+                        setCreatingDoc(true)
+                        setCreatingDiagram(false)
+                      }
+                    }}
                   >
                     + Note
+                  </button>
+                  <button
+                    className="btn btn-sm tree-action-btn"
+                    onClick={() => {
+                      if (creatingDiagram) {
+                        setCreatingDiagram(false)
+                        setCreatingDoc(false)
+                      } else {
+                        setCreateKind('EXCALIDRAW')
+                        setCreatingDiagram(true)
+                        setCreatingDoc(true)
+                      }
+                    }}
+                  >
+                    + Diagram
                   </button>
                   <button
                     className="btn btn-sm tree-action-btn"
@@ -330,12 +358,12 @@ function DashboardWithTabs() {
                     <button type="submit" className="btn btn-sm btn-primary">Add</button>
                   </form>
                 )}
-                {creatingDoc && (
+                {(creatingDoc || creatingDiagram) && (
                   <form className="inline-form tree-inline-form" onSubmit={handleCreateDoc}>
                     <input
                       value={newDocTitle}
                       onChange={(e) => setNewDocTitle(e.target.value)}
-                      placeholder="Note title"
+                      placeholder={createKind === 'EXCALIDRAW' ? 'Diagram title' : 'Note title'}
                       autoFocus
                     />
                     <button type="submit" className="btn btn-sm btn-primary">Add</button>

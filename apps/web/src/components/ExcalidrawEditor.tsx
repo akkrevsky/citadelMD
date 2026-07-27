@@ -1,80 +1,93 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import '@excalidraw/excalidraw/index.css'
 
-interface ExcalidrawEditorProps {
-  onSave: (svgDataUrl: string) => void
-  onClose: () => void
+export interface ExcalidrawSceneData {
+  type?: string
+  version?: number
+  source?: string
+  elements?: readonly unknown[]
+  appState?: Record<string, unknown>
+  files?: Record<string, unknown>
 }
 
-function ExcalidrawEditor({ onSave, onClose }: ExcalidrawEditorProps) {
+interface ExcalidrawEditorProps {
+  initialData?: ExcalidrawSceneData | null
+  onChange?: (scene: ExcalidrawSceneData) => void
+  theme?: 'light' | 'dark'
+}
+
+function ExcalidrawEditor({ initialData, onChange, theme = 'light' }: ExcalidrawEditorProps) {
   const [Excalidraw, setExcalidraw] = useState<any>(null)
-  const [elRef, setElRef] = useState<any>(null)
-  const [isSaving, setIsSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const apiRef = useRef<any>(null)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   useEffect(() => {
+    let cancelled = false
     import('@excalidraw/excalidraw')
       .then((mod) => {
+        if (cancelled) return
         setExcalidraw(() => mod.Excalidraw)
         setLoading(false)
       })
       .catch((err: Error) => {
+        if (cancelled) return
         setLoadError('Failed to load Excalidraw: ' + err.message)
         setLoading(false)
       })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const handleExport = useCallback(async () => {
-    if (!elRef) return
-    setIsSaving(true)
-    try {
-      const elements = elRef.getSceneElements()
-      const appState = elRef.getAppState()
-      const files = elRef.getFiles()
-      const { exportToSvg } = await import('@excalidraw/excalidraw')
-      const svg = await exportToSvg({ elements, appState, files, exportBackground: true, exportWithDarkMode: false })
-      const serializer = new XMLSerializer()
-      const svgString = serializer.serializeToString(svg)
-      const svgBase64 = btoa(unescape(encodeURIComponent(svgString)))
-      onSave(`data:image/svg+xml;base64,${svgBase64}`)
-    } catch (error) {
-      console.error('Excalidraw export failed:', error)
-    } finally {
-      setIsSaving(false)
-    }
-  }, [elRef, onSave])
+  const handleChange = useCallback((elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => {
+    onChangeRef.current?.({
+      type: 'excalidraw',
+      version: 2,
+      source: 'citadelmd',
+      elements,
+      appState: {
+        viewBackgroundColor: appState.viewBackgroundColor ?? '#ffffff',
+      },
+      files: files ?? {},
+    })
+  }, [])
 
-  if (loading)
-    return (
-      <div className="excalidraw-loading">
-        Loading diagram editor...
-      </div>
-    )
-  if (loadError)
-    return (
-      <div className="excalidraw-error">{loadError}</div>
-    )
+  if (loading) {
+    return <div className="excalidraw-loading">Loading diagram editor...</div>
+  }
+  if (loadError) {
+    return <div className="excalidraw-error">{loadError}</div>
+  }
   if (!Excalidraw) return null
 
+  const preparedInitial = initialData
+    ? {
+        elements: initialData.elements ?? [],
+        appState: {
+          ...(initialData.appState ?? {}),
+          collaborators: new Map(),
+        },
+        files: initialData.files ?? {},
+      }
+    : undefined
+
   return (
-    <div className="excalidraw-container">
+    <div className="excalidraw-canvas">
       <Excalidraw
-        excalidrawAPI={(api: any) => setElRef(api)}
+        excalidrawAPI={(api: any) => {
+          apiRef.current = api
+        }}
+        initialData={preparedInitial}
+        onChange={handleChange}
+        theme={theme}
         UIOptions={{
-          canvasActions: { loadScene: false, saveToActiveFile: false },
+          canvasActions: { loadScene: false, saveToActiveFile: false, export: false },
           tools: { image: false },
-          dockedSidebarBreakpoint: 0,
         }}
       />
-      <div className="excalidraw-footer">
-        <button className="btn btn-primary btn-sm" onClick={handleExport} disabled={isSaving}>
-          {isSaving ? 'Saving...' : 'Insert into document'}
-        </button>
-        <button className="btn btn-sm" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
     </div>
   )
 }
