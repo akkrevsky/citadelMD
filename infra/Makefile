@@ -1,5 +1,6 @@
 .PHONY: install dev up build rebuild down logs ps migrate seed backup \
-	debug-up debug-down debug-ps debug-logs debug-migrate debug-seed debug-setup
+	debug-up debug-down debug-ps debug-logs debug-migrate debug-seed debug-setup \
+	debug-dev debug
 
 DEBUG_COMPOSE = docker compose --env-file .env_debug -f docker-compose.debug.yml
 
@@ -44,7 +45,15 @@ debug-up:
 	$(DEBUG_COMPOSE) up -d
 	@echo ""
 	@echo "Debug infra ready (postgres :5433, redis :6380, minio :9002)."
-	@echo "Run: pnpm dev:debug  ->  http://localhost:5174"
+	@echo "Run: make debug-dev  ->  http://localhost:5174"
+
+# Infra (if needed) + hot-reload apps on debug ports (foreground).
+debug-dev: debug-up
+	@echo "Starting apps (web :5174, backend :3001, yjs :1236/:1237, mcp :3101)..."
+	cd .. && pnpm dev:debug
+
+# Alias for debug-dev
+debug: debug-dev
 
 debug-down:
 	$(DEBUG_COMPOSE) down
@@ -65,3 +74,5 @@ debug-setup: debug-up
 	@echo "Waiting for postgres..."
 	@sleep 5
 	$(MAKE) debug-migrate debug-seed
+	@echo ""
+	@echo "Setup done. Run: make debug-dev"

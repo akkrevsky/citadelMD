@@ -19,7 +19,7 @@ case "${1:-up}" in
     echo "Debug infra is up. Next steps:"
     echo "  make -C infra debug-migrate   # first time only"
     echo "  make -C infra debug-seed      # first time only"
-    echo "  pnpm dev:debug                # hot-reload apps"
+    echo "  make -C infra debug-dev       # hot-reload apps"
     echo ""
     echo "Open http://localhost:5174"
     ;;
