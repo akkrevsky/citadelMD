@@ -1,0 +1,66 @@
+---
+description: Git commit message format and attribution rules for this repo
+alwaysApply: true
+---
+
+# Git commits
+
+Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/).
+
+## Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+- Type and description are required; colon and space after type/scope.
+- Description is a short summary in imperative mood (e.g. `add`, `fix`, `update`).
+- Body (if any) starts one blank line after the description.
+- No emoji in commit messages.
+
+## Types
+
+| Type | Use when |
+|---|---|
+| `feat` | New user-facing capability |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `style` | Formatting; no code change |
+| `refactor` | Restructuring without behavior change |
+| `perf` | Performance improvement |
+| `test` | Tests only |
+| `build` | Build system or dependencies |
+| `ci` | CI configuration |
+| `chore` | Maintenance that does not fit above |
+
+## Breaking changes
+
+Indicate with `!` after type/scope and/or a footer:
+
+```
+feat(api)!: drop legacy share token format
+
+BREAKING CHANGE: share URLs created before v2 no longer resolve.
+```
+
+## Attribution — never add Cursor trailers
+
+- Do **not** add `Co-authored-by: Cursor <cursoragent@cursor.com>` or any other `Co-authored-by` / `Co-Authored-By` trailer.
+- Do **not** add "Made with Cursor" or similar agent attribution footers.
+- Commit author stays the human user; message body describes the change only.
+
+## Examples
+
+```
+feat(web): show history and share buttons on document edit page
+
+fix(backend): return 404 when folder permission is missing
+
+docs: document folder permission inheritance
+
+test(web): cover history-share button visibility
+```
