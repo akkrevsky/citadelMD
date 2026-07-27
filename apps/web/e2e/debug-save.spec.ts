@@ -2,7 +2,20 @@ import { test, expect } from '@playwright/test'
 
 const BASE = 'http://localhost:8081'
 
-async function setup(page: import('@playwright/test').Page) {
+test('Debug: Ctrl+S with console/network monitoring', async ({ page }) => {
+  const events: string[] = []
+  page.on('console', m => {
+    if (m.type() === 'log') events.push(`LOG: ${m.text().substring(0,120)}`)
+    if (m.type() === 'error') events.push(`ERR: ${m.text().substring(0,120)}`)
+  })
+  page.on('response', async r => {
+    if (r.url().includes('/commit')) events.push(`RESP: ${r.status()} ${r.url().split('/').slice(-3).join('/')}`)
+  })
+  page.on('requestfailed', r => {
+    events.push(`FAIL: ${r.url().split('/').slice(-3).join('/')} ${r.failure()?.errorText || ''}`)
+  })
+
+  // Login
   await page.goto(BASE + '/')
   await page.waitForLoadState('networkidle')
   await page.locator('#login').fill('admin')
@@ -12,71 +25,49 @@ async function setup(page: import('@playwright/test').Page) {
     page.getByRole('button', { name: 'Sign in' }).click(),
   ])
   await page.waitForLoadState('networkidle')
-  const docCount = await page.locator('.tree-item.document .document-link').count()
-  if (docCount === 0) {
-    await page.getByRole('button', { name: 'Create New Document' }).click()
-    await page.waitForTimeout(300)
-    await page.locator('input[placeholder="Document title"]').fill('SaveDebug ' + Date.now())
-    await Promise.all([
-      page.waitForNavigation({ timeout: 10000 }),
-      page.getByRole('button', { name: 'Create' }).click(),
-    ])
-  } else {
-    await Promise.all([
-      page.waitForNavigation({ timeout: 10000 }),
-      page.locator('.tree-item.document .document-link').first().click(),
-    ])
-  }
-  await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(3000)
-}
 
-test('Debug: Save button vs Ctrl+S', async ({ page }) => {
-  const responses: string[] = []
-  page.on('response', async (r) => {
-    if (r.url().includes('/commit') || r.url().includes('/flush')) {
-      responses.push(`${r.status()} ${r.url()}`)
-    }
-  })
-  page.on('console', (m) => {
-    if (m.type() === 'error' || m.type() === 'log') responses.push(`CONSOLE[${m.type()}]: ${m.text()}`)
-  })
+  // Create doc
+  await page.getByRole('button', { name: 'Create New Document' }).click()
+  await page.waitForTimeout(300)
+  await page.locator('input[placeholder="Document title"]').fill('CtrlSTest ' + Date.now())
+  await Promise.all([
+    page.waitForNavigation({ timeout: 10000 }),
+    page.getByRole('button', { name: 'Create' }).click(),
+  ])
 
-  await setup(page)
+  // Wait for document to load including WS connection
+  await page.waitForTimeout(5000)
+
+  // Show recent console messages
+  const preLogs = events.filter(e => e.startsWith('LOG') || e.startsWith('ERR')).slice(-15)
+  console.log('Console before typing:', preLogs)
+
+  // Type
   const editor = page.locator('.cm-editor .cm-content')
-  await expect(editor).toBeVisible({ timeout: 20000 })
-
+  await expect(editor).toBeVisible({ timeout: 10000 })
   await editor.click()
+
+  // Clear any existing content
   await page.keyboard.press('Control+a')
   await page.keyboard.press('Backspace')
-  await page.keyboard.type('DebugSaveMarker ' + Date.now())
-  await page.waitForTimeout(800)
+  await page.keyboard.type('Ctrl+S test content ' + Date.now())
+  await page.waitForTimeout(3000)
 
-  const indicatorVisible1 = await page.locator('.changes-indicator').isVisible()
-  console.log('After typing, indicator visible:', indicatorVisible1)
+  const typeLogs = events.filter(e => e.startsWith('LOG') || e.startsWith('ERR')).slice(-5)
+  console.log('Console after typing:', typeLogs)
 
-  // Try the Save BUTTON first
-  console.log('--- Clicking Save button ---')
-  const saveBtn = page.getByRole('button', { name: 'Saving...' }).or(page.getByRole('button', { name: 'Save' }))
-  await saveBtn.click()
-  await page.waitForTimeout(2500)
-  const indicatorAfterButton = await page.locator('.changes-indicator').isVisible()
-  console.log('After Save button, indicator visible:', indicatorAfterButton)
-  console.log('Responses so far:', responses.slice(-10))
+  // Check indicator
+  const indicator = page.locator('.changes-indicator')
+  const vis = await indicator.isVisible().catch(() => false)
+  console.log('Unsaved indicator visible:', vis)
 
-  // Now type again and try Ctrl+S
-  await editor.click()
-  await page.keyboard.press('End')
-  await page.keyboard.type(' MORE CONTENT')
-  await page.waitForTimeout(800)
-  const indicatorVisible2 = await page.locator('.changes-indicator').isVisible()
-  console.log('After typing more, indicator visible:', indicatorVisible2)
-
-  console.log('--- Pressing Ctrl+S ---')
-  responses.length = 0
+  events.length = 0 // clear
+  // Press Ctrl+S
   await page.keyboard.press('Control+s')
-  await page.waitForTimeout(2500)
-  const indicatorAfterCtrlS = await page.locator('.changes-indicator').isVisible()
-  console.log('After Ctrl+S, indicator visible:', indicatorAfterCtrlS)
-  console.log('Responses during Ctrl+S:', responses)
+  await page.waitForTimeout(5000)
+
+  console.log('All events after Ctrl+S:', events.slice(-10))
+
+  const visAfter = await indicator.isVisible().catch(() => false)
+  console.log('Unsaved indicator after Ctrl+S:', visAfter)
 })
