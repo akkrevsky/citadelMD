@@ -25,6 +25,7 @@ export interface FolderTreeNode {
   documents: {
     id: string
     title: string
+    kind: 'MARKDOWN' | 'EXCALIDRAW'
     filePath: string
     createdAt: Date
     updatedAt: Date
@@ -163,6 +164,7 @@ interface DocumentRow {
   id: string
   folderId: string
   title: string
+  kind: 'MARKDOWN' | 'EXCALIDRAW'
   filePath: string
   createdAt: Date
   updatedAt: Date
@@ -415,6 +417,7 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
     const documents = (docsByFolder.get(f.id) ?? []).map((d: DocumentRow) => ({
       id: d.id,
       title: d.title,
+      kind: d.kind,
       filePath: d.filePath,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
@@ -487,6 +490,7 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
     const documents = (orgDocsByFolder.get(f.id) ?? []).map((d: DocumentRow) => ({
       id: d.id,
       title: d.title,
+      kind: d.kind,
       filePath: d.filePath,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,

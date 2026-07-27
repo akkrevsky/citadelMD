@@ -10,6 +10,7 @@ export interface CreateDocumentInput {
   folderId: string
   title: string
   createdById: string
+  kind?: 'MARKDOWN' | 'EXCALIDRAW'
 }
 
 export interface UpdateDocumentInput {
@@ -20,6 +21,7 @@ export interface DocumentMetadata {
   id: string
   folderId: string
   title: string
+  kind: 'MARKDOWN' | 'EXCALIDRAW'
   filePath: string
   createdAt: Date
   updatedAt: Date
@@ -51,6 +53,7 @@ export class DocumentService {
    */
   async createDocument(input: CreateDocumentInput): Promise<DocumentMetadata> {
     const { folderId, title, createdById } = input
+    const kind = input.kind === 'EXCALIDRAW' ? 'EXCALIDRAW' : 'MARKDOWN'
 
     // Validate folder exists
     const folder = await prisma.folder.findUnique({ 
@@ -71,7 +74,8 @@ export class DocumentService {
       })
     }
 
-    const fileName = this.sanitizeFileName(title) + '.md'
+    const ext = kind === 'EXCALIDRAW' ? '.excalidraw' : '.md'
+    const fileName = this.sanitizeFileName(title) + ext
     const filePath = folder.gitPath ? `${folder.gitPath}/${fileName}` : fileName
     const fullPath = path.join(this.getGitRepoPath(), filePath)
 
@@ -91,13 +95,27 @@ export class DocumentService {
 
     // Create document with file lock
     return withFileLock(filePath, async () => {
-      // Write initial content
-      const initialContent = `# ${title}\n\n`
+      const initialContent =
+        kind === 'EXCALIDRAW'
+          ? JSON.stringify(
+              {
+                type: 'excalidraw',
+                version: 2,
+                source: 'citadelmd',
+                elements: [],
+                appState: { viewBackgroundColor: '#ffffff' },
+                files: {},
+              },
+              null,
+              2,
+            )
+          : `# ${title}\n\n`
       await fs.writeFile(fullPath, initialContent, 'utf8')
 
       if (folder.mode === 'GIT') {
+        const label = kind === 'EXCALIDRAW' ? 'diagram' : 'document'
         const result = await this.git.commit(
-          `Create document ${title} [user:${user.login}]`,
+          `Create ${label} ${title} [user:${user.login}]`,
           author,
           [filePath]
         )
@@ -112,6 +130,7 @@ export class DocumentService {
         data: {
           folderId,
           title,
+          kind,
           filePath,
           createdById
         }
@@ -325,7 +344,7 @@ export class DocumentService {
   async restoreToRevision(id: string, sha: string, userId: string): Promise<void> {
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { filePath: true }
+      select: { filePath: true, kind: true }
     })
 
     if (!document) {
@@ -349,7 +368,7 @@ export class DocumentService {
     await withFileLock(document.filePath, async () => {
       await this.git.restore(document.filePath, sha, author)
 
-      if (await this.hasActiveYjsSession(id)) {
+      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
         await this.reloadYjsDocument(id)
       }
     })
@@ -400,7 +419,8 @@ export class DocumentService {
       email: user.gitEmail ?? `${user.login}@mdcollab.local`
     }
 
-    const newFileName = this.sanitizeFileName(newTitle) + '.md'
+    const ext = document.kind === 'EXCALIDRAW' ? '.excalidraw' : '.md'
+    const newFileName = this.sanitizeFileName(newTitle) + ext
     const newFilePath = document.folder.gitPath
       ? `${document.folder.gitPath}/${newFileName}`
       : newFileName
@@ -492,7 +512,7 @@ export class DocumentService {
   async commitDocument(id: string, message: string, userId: string): Promise<{ updatedAt: Date }> {
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { filePath: true, folder: { select: { mode: true } } },
+      select: { filePath: true, kind: true, folder: { select: { mode: true } } },
     })
 
     if (!document) {
@@ -500,7 +520,7 @@ export class DocumentService {
     }
 
     await withFileLock(document.filePath, async () => {
-      if (await this.hasActiveYjsSession(id)) {
+      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
         await this.flushYjsDocument(id)
       }
 
@@ -538,7 +558,7 @@ export class DocumentService {
   async discardDocument(id: string): Promise<void> {
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { filePath: true }
+      select: { filePath: true, kind: true }
     })
 
     if (!document) {
@@ -548,8 +568,7 @@ export class DocumentService {
     await withFileLock(document.filePath, async () => {
       await this.git.discard(document.filePath)
 
-      // Reload Yjs document if active sessions exist
-      if (await this.hasActiveYjsSession(id)) {
+      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
         await this.reloadYjsDocument(id)
       }
     })
@@ -657,7 +676,7 @@ export class DocumentService {
   ): Promise<{ sha?: string }> {
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { id: true, filePath: true, title: true },
+      select: { id: true, filePath: true, title: true, kind: true },
     })
 
     if (!document) {
@@ -667,8 +686,8 @@ export class DocumentService {
     const fullPath = path.join(this.getGitRepoPath(), document.filePath)
 
     return withFileLock(document.filePath, async () => {
-      // Check for active Yjs sessions
-      if (await this.hasActiveYjsSession(`doc-${id}`)) {
+      // Check for active Yjs sessions (markdown only)
+      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
         throw Object.assign(
           new Error('Document has an active editing session — cannot overwrite via API'),
           { statusCode: 409 },
@@ -677,6 +696,7 @@ export class DocumentService {
 
       // Overwrite the file
       await fs.writeFile(fullPath, content, 'utf8')
+      await this.touchUpdatedAt(id)
 
       if (commit) {
         const user = await prisma.user.findUnique({

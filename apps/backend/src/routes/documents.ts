@@ -16,7 +16,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/folders/:folderId/documents - Create document
   app.post('/api/folders/:folderId/documents', async (request, reply) => {
     const { folderId } = request.params as { folderId: string }
-    const { title } = request.body as { title?: string }
+    const { title, kind } = request.body as { title?: string; kind?: string }
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
       return reply.status(400).send({
@@ -30,12 +30,21 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       })
     }
 
+    const docKind =
+      kind === 'EXCALIDRAW' ? 'EXCALIDRAW' : kind === 'MARKDOWN' || kind === undefined ? 'MARKDOWN' : null
+    if (docKind === null) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'kind must be MARKDOWN or EXCALIDRAW' },
+      })
+    }
+
     try {
       await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       const document = await documentService.createDocument({
         folderId,
         title: title.trim(),
         createdById: request.user!.sub,
+        kind: docKind,
       })
       return reply.status(201).send(document)
     } catch (err: unknown) {
@@ -98,8 +107,16 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       }
 
       return reply
-        .header('Content-Type', 'text/markdown; charset=utf-8')
-        .header('Content-Disposition', `attachment; filename="${document.title}.md"`)
+        .header(
+          'Content-Type',
+          document.kind === 'EXCALIDRAW'
+            ? 'application/json; charset=utf-8'
+            : 'text/markdown; charset=utf-8',
+        )
+        .header(
+          'Content-Disposition',
+          `attachment; filename="${document.title}${document.kind === 'EXCALIDRAW' ? '.excalidraw' : '.md'}"`,
+        )
         .status(200)
         .send(content)
     } catch (err: unknown) {

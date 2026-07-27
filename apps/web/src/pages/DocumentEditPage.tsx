@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { CollaborativeEditor } from '../components/CollaborativeEditor.js'
 import { MarkdownPreview } from '../components/MarkdownPreview.js'
@@ -9,6 +9,7 @@ import { ShareDialog } from '../components/ShareDialog.js'
 import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
 import { ConfirmModal } from '../components/ConfirmModal.js'
 import { RevisionTree } from '../components/RevisionTree.js'
+import { ExcalidrawEditPage } from './ExcalidrawEditPage.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
 import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
@@ -20,8 +21,6 @@ import '../styles/preview.css'
 import '../styles/toolbar.css'
 import '../styles/statusbar.css'
 import '../styles/tabbar.css'
-
-const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
 
 const LAST_DOC_KEY = 'citadelmd-last-opened-id'
 
@@ -40,7 +39,6 @@ export function DocumentEditPage() {
   const [isCommitting, setIsCommitting] = useState(false)
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
-  const [showExcalidraw, setShowExcalidraw] = useState(false)
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [toasts, setToasts] = useState<ToastData[]>([])
@@ -112,6 +110,11 @@ export function DocumentEditPage() {
 
       // Update tab title once metadata is loaded
       updateTabTitle(id!, docResponse.title)
+
+      if (docResponse.kind === 'EXCALIDRAW') {
+        setLoading(false)
+        return
+      }
 
       const contentResponse = await api.exportDocument(id!)
       setContent(contentResponse)
@@ -217,12 +220,6 @@ export function DocumentEditPage() {
   const handleDocStats = useCallback((s: { words: number; chars: number; lines: number }) => {
     setStats(s)
   }, [])
-
-  const handleExcalidrawSave = (svgDataUrl: string) => {
-    const insertText = '```excalidraw\n' + svgDataUrl + '\n```\n\n'
-    handleInsertAtCursor(insertText)
-    setShowExcalidraw(false)
-  }
 
   const handleSave = async () => {
     try {
@@ -369,6 +366,10 @@ export function DocumentEditPage() {
       : ''
   const fullTitlePath = doc ? (folderPath ? `${folderPath}/${doc.title}` : doc.title) : ''
 
+  if (!loading && !error && doc?.kind === 'EXCALIDRAW' && id) {
+    return <ExcalidrawEditPage documentId={id} initialDoc={doc} />
+  }
+
   let body: React.ReactNode
   if (loading) {
     body = <div className="loading">Loading document...</div>
@@ -501,13 +502,6 @@ export function DocumentEditPage() {
             }}
             accept="image/*,.pdf,.txt,.md"
           />
-          <button
-            className="toolbar-btn text-btn"
-            onClick={() => setShowExcalidraw(true)}
-            title="Draw diagram"
-          >
-            Draw Diagram
-          </button>
         </div>
       </div>
 
@@ -604,19 +598,6 @@ export function DocumentEditPage() {
           </aside>
         )}
       </div>
-
-      {showExcalidraw && (
-        <div className="modal-overlay" onClick={() => setShowExcalidraw(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center' }}>Loading diagram editor...</div>}>
-              <ExcalidrawEditor
-                onSave={handleExcalidrawSave}
-                onClose={() => setShowExcalidraw(false)}
-              />
-            </Suspense>
-          </div>
-        </div>
-      )}
 
       {showShareDialog && id && (
         <ShareDialog

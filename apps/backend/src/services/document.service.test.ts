@@ -164,6 +164,28 @@ describe('DocumentService', () => {
       expect(log.latest?.message).toContain('Create document Test Document')
     })
 
+    it('should create EXCALIDRAW diagram with .excalidraw JSON', async () => {
+      const result = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'My Diagram',
+        createdById: testUserId,
+        kind: 'EXCALIDRAW',
+      })
+
+      expect(result).toMatchObject({
+        folderId: testFolderId,
+        title: 'My Diagram',
+        kind: 'EXCALIDRAW',
+        filePath: 'test-folder/my-diagram.excalidraw',
+        hasUncommittedChanges: false,
+      })
+
+      const content = await fs.readFile(path.join(testRepoPath, result.filePath), 'utf8')
+      const parsed = JSON.parse(content)
+      expect(parsed.type).toBe('excalidraw')
+      expect(parsed.elements).toEqual([])
+    })
+
     it('should sanitize title for filename', async () => {
       const input = {
         folderId: testFolderId,
@@ -515,6 +537,26 @@ describe('DocumentService', () => {
       const git = new GitService(testRepoPath)
       const log = await git.log(result.filePath)
       expect(log.latest?.message).toContain('Rename document Original Title -> New Title')
+    })
+
+    it('should rename EXCALIDRAW diagram keeping .excalidraw extension', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Diagram One',
+        createdById: testUserId,
+        kind: 'EXCALIDRAW',
+      })
+
+      const result = await documentService.updateDocument(
+        created.id,
+        { title: 'Diagram Two' },
+        testUserId,
+      )
+
+      expect(result.title).toBe('Diagram Two')
+      expect(result.kind).toBe('EXCALIDRAW')
+      expect(result.filePath).toBe('test-folder/diagram-two.excalidraw')
+      await expect(fs.access(path.join(testRepoPath, result.filePath))).resolves.toBeUndefined()
     })
 
     it('should throw error if new title already exists in folder', async () => {
