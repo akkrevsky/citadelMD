@@ -15,6 +15,17 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [treeLoading, setTreeLoading] = useState(true)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
+    localStorage.getItem('citadelmd-sidebar-collapsed') === '1',
+  )
+
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      localStorage.setItem('citadelmd-sidebar-collapsed', next ? '1' : '0')
+      return next
+    })
+  }
 
   useEffect(() => {
     api
@@ -86,7 +97,20 @@ export default function DashboardPage() {
   if (!user) return null
 
   return (
-    <div className="dashboard-layout">
+    <div className={`dashboard-layout${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      {/* Toggle button — visible in both states */}
+      <button
+        className="sidebar-toggle"
+        onClick={toggleSidebar}
+        title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+        aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+        aria-expanded={!sidebarCollapsed}
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16">
+          <path d="M2 4h12M2 8h12M2 12h12" strokeLinecap="round" />
+        </svg>
+      </button>
+
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
