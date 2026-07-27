@@ -409,6 +409,23 @@ select:focus {
   color: var(--color-text-muted);
 }
 
+.tree-item.document .document-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.tree-item.document .document-name {
+  color: var(--color-text);
+}
+
+.doc-created-at {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
 .tree-item.document .document-info {
   display: flex;
   justify-content: space-between;
