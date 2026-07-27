@@ -55,11 +55,10 @@ export class GitService {
       if (filePaths.length > 0) {
         await this.git.add(filePaths)
       }
-      const status = await this.git.status()
-      if (status.staged.length === 0) {
-        return null
-      }
-    } else {
+    }
+    // Regardless of how we got here, do a full -A if no filePaths were
+    // specified, or rely on what git.add already staged above.
+    if (filePaths === undefined) {
       const status = await this.git.status()
       if (status.files.length === 0) {
         return null
