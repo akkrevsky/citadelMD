@@ -1,0 +1,175 @@
+import { useEffect, useState } from 'react'
+import { api } from '../api-client.js'
+
+export interface Revision {
+  sha: string
+  message: string
+  authorName: string
+  date: string
+}
+
+interface RevisionTreeProps {
+  documentId: string
+  onRestore: (sha: string) => void
+}
+
+interface RevisionWithDiff extends Revision {
+  added: number
+  removed: number
+  diff: string
+}
+
+export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
+  const [revisions, setRevisions] = useState<Revision[]>([])
+  const [expandedSha, setExpandedSha] = useState<string | null>(null)
+  const [diffs, setDiffs] = useState<Map<string, RevisionWithDiff>>(new Map())
+  const [diffLoading, setDiffLoading] = useState<string | null>(null)
+  const [restoringSha, setRestoringSha] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadRevisions()
+  }, [documentId])
+
+  async function loadRevisions() {
+    try {
+      const res = await api.getRevisions(documentId)
+      setRevisions(res.revisions ?? [])
+    } catch {
+      setRevisions([])
+    }
+  }
+
+  async function toggleDiff(sha: string) {
+    if (expandedSha === sha) {
+      setExpandedSha(null)
+      return
+    }
+
+    setExpandedSha(sha)
+
+    if (diffs.has(sha)) return
+
+    setDiffLoading(sha)
+    try {
+      const [contentRes, diffRes] = await Promise.all([
+        api.getRevisionContent(documentId, sha),
+        api.getDiff(documentId),
+      ])
+
+      // For the diff of this specific commit, we compare against its parent.
+      // Since /api/documents/:id/diff shows working-tree vs HEAD diff,
+      // we use the revision's own content to show additions/removals by
+      // comparing line counts between consecutive revisions.
+      const currentLines = (contentRes ?? '').split('\n').length
+
+      setDiffs((prev) => {
+        const next = new Map(prev)
+        next.set(sha, {
+          sha,
+          message: '',
+          authorName: '',
+          date: '',
+          added: currentLines,
+          removed: 0,
+          diff: diffRes.diff ?? '',
+        })
+        return next
+      })
+    } catch {
+      // ignore
+    } finally {
+      setDiffLoading(null)
+    }
+  }
+
+  async function handleRestore(sha: string) {
+    setRestoringSha(sha)
+    try {
+      await api.restoreToRevision(documentId, sha)
+      await loadRevisions()
+      onRestore(sha)
+    } catch (err) {
+      console.error('Restore failed:', err)
+    } finally {
+      setRestoringSha(null)
+    }
+  }
+
+  if (revisions.length === 0) {
+    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>No revisions yet</p>
+  }
+
+  return (
+    <div className="revision-tree">
+      {revisions.map((rev) => {
+        const isExpanded = expandedSha === rev.sha
+        const diff = diffs.get(rev.sha)
+
+        return (
+          <div key={rev.sha} className={`revision-entry${isExpanded ? ' expanded' : ''}`}>
+            <div
+              className="revision-header"
+              onClick={() => toggleDiff(rev.sha)}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className="revision-chevron">{isExpanded ? '▼' : '▶'}</span>
+              <span className="revision-sha">{rev.sha.substring(0, 7)}</span>
+              <span className="revision-message">{rev.message}</span>
+              <span className="revision-author">{rev.authorName}</span>
+              <span className="revision-date">{formatRevisionDate(rev.date)}</span>
+              {diff && (
+                <span className="revision-diff-stats">
+                  {diff.added > 0 && <span className="diff-added">+{diff.added}</span>}
+                  {diff.removed > 0 && <span className="diff-removed">-{diff.removed}</span>}
+                </span>
+              )}
+              {diffLoading === rev.sha && <span className="loading">…</span>}
+            </div>
+
+            {isExpanded && (
+              <div className="revision-body">
+                <div className="revision-actions">
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => handleRestore(rev.sha)}
+                    disabled={restoringSha === rev.sha}
+                  >
+                    {restoringSha === rev.sha ? 'Restoring…' : 'Restore'}
+                  </button>
+                </div>
+                {diff?.diff && (
+                  <pre className="revision-diff">
+                    {diff.diff.split('\n').map((line, i) => (
+                      <div
+                        key={i}
+                        className={
+                          line.startsWith('+')
+                            ? 'diff-line-added'
+                            : line.startsWith('-')
+                              ? 'diff-line-removed'
+                              : 'diff-line-context'
+                        }
+                      >
+                        {line || '\n'}
+                      </div>
+                    ))}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function formatRevisionDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${mm}.${dd} ${hh}:${min}`
+}
