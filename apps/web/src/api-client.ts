@@ -27,6 +27,7 @@ export interface TreeItem {
   id: string
   name: string
   type: 'folder' | 'document'
+  createdAt?: string
   children?: TreeItem[]
 }
 
@@ -42,6 +43,7 @@ export interface Document {
   id: string
   title: string
   filePath: string
+  createdAt: string
   updatedAt: string
 }
 
@@ -51,7 +53,7 @@ function flattenTree(folders: FolderNode[]): TreeItem[] {
   for (const folder of folders) {
     result.push({ id: folder.id, name: folder.name, type: 'folder', children: flattenTree(folder.children) })
     for (const doc of folder.documents) {
-      result.push({ id: doc.id, name: doc.title, type: 'document' })
+      result.push({ id: doc.id, name: doc.title, type: 'document', createdAt: doc.createdAt })
     }
   }
   return result

@@ -351,3 +351,92 @@ test.describe('Batch A — Scroll sync', () => {
     expect(newScroll).toBeGreaterThan(initialScroll)
   })
 })
+
+test.describe('Batch A — Document switching & save', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page)
+    await ensureDocument(page)
+  })
+
+  test('Preview updates when switching between documents', async ({ page }) => {
+    const editor = page.locator('.cm-editor .cm-content')
+    await expect(editor).toBeVisible({ timeout: 20000 })
+
+    // Ensure split view so preview is visible
+    const splitBtn = page.locator('.view-mode-btn').filter({ hasText: 'Split' })
+    if (!(await splitBtn.evaluate((el) => el.classList.contains('active')))) await splitBtn.click()
+    await page.waitForTimeout(500)
+
+    // Type marker A in the current doc
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('# MarkerDocAlpha')
+    await page.waitForTimeout(1000)
+    let previewHtml = await page.locator('.markdown-preview').innerHTML()
+    expect(previewHtml).toContain('MarkerDocAlpha')
+
+    // Remember doc A title to find it in the sidebar later
+    const docATitle = await page.locator('.document-title-input').inputValue()
+
+    // Navigate to dashboard and create a second document
+    await page.getByRole('button', { name: 'Dashboard' }).click()
+    await page.waitForTimeout(500)
+    await page.getByRole('button', { name: 'Create New Document' }).click()
+    await page.waitForTimeout(300)
+    const docBTitle = 'DocB_' + Date.now()
+    await page.locator('input[placeholder="Document title"]').fill(docBTitle)
+    await Promise.all([
+      page.waitForNavigation({ timeout: 10000 }),
+      page.getByRole('button', { name: 'Create' }).click(),
+    ])
+    await page.waitForTimeout(3000)
+
+    // Ensure split view on doc B
+    const splitBtnB = page.locator('.view-mode-btn').filter({ hasText: 'Split' })
+    if (!(await splitBtnB.evaluate((el) => el.classList.contains('active')))) await splitBtnB.click()
+    await page.waitForTimeout(500)
+
+    // Type marker B
+    const editorB = page.locator('.cm-editor .cm-content')
+    await editorB.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('# MarkerDocBeta')
+    await page.waitForTimeout(1000)
+    previewHtml = await page.locator('.markdown-preview').innerHTML()
+    expect(previewHtml).toContain('MarkerDocBeta')
+
+    // Navigate back to doc A via the sidebar (client-side navigation)
+    await page.locator('.tree-item.document .document-link').filter({ hasText: docATitle }).click()
+    await page.waitForTimeout(3000)
+
+    // Preview must now show doc A's marker, NOT doc B's stale content
+    previewHtml = await page.locator('.markdown-preview').innerHTML()
+    expect(previewHtml).toContain('MarkerDocAlpha')
+    expect(previewHtml).not.toContain('MarkerDocBeta')
+  })
+
+  test('Ctrl+S commits the document and clears unsaved indicator', async ({ page }) => {
+    const editor = page.locator('.cm-editor .cm-content')
+    await expect(editor).toBeVisible({ timeout: 20000 })
+
+    // Type content to create unsaved state
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('Ctrl S Save Test ' + Date.now())
+    await page.waitForTimeout(500)
+
+    // Unsaved indicator must appear
+    await expect(page.locator('.changes-indicator')).toBeVisible({ timeout: 3000 })
+
+    // Press Ctrl+S
+    await page.keyboard.press('Control+s')
+    await page.waitForTimeout(2000)
+
+    // Unsaved indicator must be cleared (save succeeded)
+    await expect(page.locator('.changes-indicator')).not.toBeVisible({ timeout: 5000 })
+  })
+})
+

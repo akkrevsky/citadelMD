@@ -25,6 +25,7 @@ export interface FolderTreeNode {
     id: string
     title: string
     filePath: string
+    createdAt: Date
     updatedAt: Date
   }[]
 }
@@ -413,6 +414,7 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
       id: d.id,
       title: d.title,
       filePath: d.filePath,
+      createdAt: d.createdAt,
       updatedAt: d.updatedAt,
     }))
 
@@ -483,6 +485,7 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
       id: d.id,
       title: d.title,
       filePath: d.filePath,
+      createdAt: d.createdAt,
       updatedAt: d.updatedAt,
     }))
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
+import { formatCreatedAt } from '../utils/format'
 
 export interface DashboardContext {
   selectedFolderId: string | null
@@ -65,7 +66,10 @@ export default function DashboardPage() {
             to={`/documents/${item.id}/edit`}
             className="document-link"
           >
-            {item.name}
+            <span className="document-name">{item.name}</span>
+            {item.createdAt && (
+              <span className="doc-created-at">{formatCreatedAt(item.createdAt)}</span>
+            )}
           </Link>
         </div>
       )
