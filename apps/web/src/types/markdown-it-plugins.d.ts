@@ -1,3 +1,4 @@
+declare module 'markdown-it-texmath'
 declare module 'markdown-it-prism'
 declare module 'markdown-it-mermaid'
 declare module 'markdown-it-katex' {

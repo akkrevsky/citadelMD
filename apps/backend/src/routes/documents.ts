@@ -309,7 +309,11 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       const folderId = await getDocumentFolderId(id)
       await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
       await documentService.commitDocument(id, message.trim(), request.user!.sub)
-      return reply.status(200).send({ message: 'Changes committed successfully' })
+      const doc = await documentService.getDocument(id)
+      return reply.status(200).send({
+        message: 'Changes committed successfully',
+        updatedAt: doc?.updatedAt,
+      })
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number }
       const status = e.statusCode ?? 500
@@ -405,6 +409,34 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       const e = err as Error & { statusCode?: number }
       return reply.status(e.statusCode ?? 500).send({
         error: { code: 'REVISIONS_ERROR', message: e.message },
+      })
+    }
+  })
+
+  // GET /api/documents/:id/revisions/:sha/diff - Diff for a specific revision
+  app.get('/api/documents/:id/revisions/:sha/diff', async (request, reply) => {
+    const { id, sha } = request.params as { id: string; sha: string }
+
+    if (!sha || sha.length < 7 || sha.length > 40) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Valid SHA is required (7-40 characters)' },
+      })
+    }
+
+    try {
+      const folderId = await getDocumentFolderId(id)
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'VIEW')
+      const diff = await documentService.getRevisionDiff(id, sha)
+      if (diff === null) {
+        return reply.status(404).send({
+          error: { code: 'REVISION_NOT_FOUND', message: 'Revision diff not found' },
+        })
+      }
+      return reply.status(200).send({ diff })
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      return reply.status(e.statusCode ?? 500).send({
+        error: { code: 'REVISION_DIFF_ERROR', message: e.message },
       })
     }
   })

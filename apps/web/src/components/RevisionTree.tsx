@@ -13,16 +13,27 @@ interface RevisionTreeProps {
   onRestore: (sha: string) => void
 }
 
-interface RevisionWithDiff extends Revision {
+interface DiffStats {
   added: number
   removed: number
   diff: string
 }
 
+function countDiffLines(diff: string): { added: number; removed: number } {
+  let added = 0
+  let removed = 0
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) continue
+    if (line.startsWith('+')) added++
+    else if (line.startsWith('-')) removed++
+  }
+  return { added, removed }
+}
+
 export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
   const [revisions, setRevisions] = useState<Revision[]>([])
   const [expandedSha, setExpandedSha] = useState<string | null>(null)
-  const [diffs, setDiffs] = useState<Map<string, RevisionWithDiff>>(new Map())
+  const [diffs, setDiffs] = useState<Map<string, DiffStats>>(new Map())
   const [diffLoading, setDiffLoading] = useState<string | null>(null)
   const [restoringSha, setRestoringSha] = useState<string | null>(null)
 
@@ -51,28 +62,11 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
 
     setDiffLoading(sha)
     try {
-      const [contentRes, diffRes] = await Promise.all([
-        api.getRevisionContent(documentId, sha),
-        api.getDiff(documentId),
-      ])
-
-      // For the diff of this specific commit, we compare against its parent.
-      // Since /api/documents/:id/diff shows working-tree vs HEAD diff,
-      // we use the revision's own content to show additions/removals by
-      // comparing line counts between consecutive revisions.
-      const currentLines = (contentRes ?? '').split('\n').length
-
+      const diff = await api.getRevisionDiff(documentId, sha)
+      const stats = countDiffLines(diff)
       setDiffs((prev) => {
         const next = new Map(prev)
-        next.set(sha, {
-          sha,
-          message: '',
-          authorName: '',
-          date: '',
-          added: currentLines,
-          removed: 0,
-          diff: diffRes.diff ?? '',
-        })
+        next.set(sha, { ...stats, diff })
         return next
       })
     } catch {
@@ -134,7 +128,7 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
                     onClick={() => handleRestore(rev.sha)}
                     disabled={restoringSha === rev.sha}
                   >
-                    {restoringSha === rev.sha ? 'Restoring…' : 'Restore'}
+                    {restoringSha === rev.sha ? 'Restoring…' : 'Restore to this version'}
                   </button>
                 </div>
                 {diff?.diff && (
@@ -143,9 +137,9 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
                       <div
                         key={i}
                         className={
-                          line.startsWith('+')
+                          line.startsWith('+') && !line.startsWith('+++')
                             ? 'diff-line-added'
-                            : line.startsWith('-')
+                            : line.startsWith('-') && !line.startsWith('---')
                               ? 'diff-line-removed'
                               : 'diff-line-context'
                         }

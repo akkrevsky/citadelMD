@@ -15,8 +15,16 @@ interface TabsContextType {
   pinTab: (tab: Tab) => void
   /** Close a pinned (or preview) tab. */
   closeTab: (id: string) => void
+  /** Close all tabs except the given one. */
+  closeOthers: (id: string) => void
+  /** Close all tabs to the left of the given one. */
+  closeLeft: (id: string) => void
+  /** Close all tabs to the right of the given one. */
+  closeRight: (id: string) => void
   /** Set the active tab. */
   setActive: (id: string) => void
+  /** Update tab title without changing pin/preview state. */
+  updateTabTitle: (id: string, title: string) => void
   /** Tabs in display order: pinned tabs followed by the preview tab (if any). */
   allTabs: Tab[]
 }
@@ -93,15 +101,54 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const closeOthers = useCallback((id: string) => {
+    setPreviewTab((prev) => (prev?.id === id ? prev : null))
+    if (previewTab?.id !== id) setPreviewTab(null)
+    setPinnedTabs((pinned) => {
+      const kept = pinned.filter((t) => t.id === id)
+      if (kept.length === 0) setActiveTabId(null)
+      return kept
+    })
+    setActiveTabId(id)
+  }, [previewTab])
+
+  const closeLeft = useCallback((id: string) => {
+    setPinnedTabs((pinned) => {
+      const idx = pinned.findIndex((t) => t.id === id)
+      if (idx <= 0) return pinned
+      const kept = pinned.slice(idx)
+      setActiveTabId(id)
+      return kept
+    })
+  }, [setActiveTabId])
+
+  const closeRight = useCallback((id: string) => {
+    setPreviewTab(null)
+    setPinnedTabs((pinned) => {
+      const idx = pinned.findIndex((t) => t.id === id)
+      if (idx === -1 || idx >= pinned.length - 1) return pinned
+      const kept = pinned.slice(0, idx + 1)
+      setActiveTabId(id)
+      return kept
+    })
+  }, [setActiveTabId])
+
   const setActive = useCallback((id: string) => {
     setActiveTabId(id)
+  }, [])
+
+  const updateTabTitle = useCallback((id: string, title: string) => {
+    setPinnedTabs((pinned) =>
+      pinned.map((t) => (t.id === id ? { ...t, title } : t)),
+    )
+    setPreviewTab((prev) => (prev?.id === id ? { ...prev, title } : prev))
   }, [])
 
   const allTabs = previewTab ? [...pinnedTabs, previewTab] : pinnedTabs
 
   return (
     <TabsContext.Provider
-      value={{ pinnedTabs, previewTab, activeTabId, openPreview, pinTab, closeTab, setActive, allTabs }}
+      value={{ pinnedTabs, previewTab, activeTabId, openPreview, pinTab, closeTab, closeOthers, closeLeft, closeRight, setActive, updateTabTitle, allTabs }}
     >
       {children}
     </TabsContext.Provider>

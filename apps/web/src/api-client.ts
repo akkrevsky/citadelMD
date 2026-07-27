@@ -30,12 +30,16 @@ export interface TreeItem {
   name: string
   type: 'folder' | 'document'
   createdAt?: string
+  updatedAt?: string
+  filePath?: string
+  folderMode?: 'GIT' | 'SNAPSHOT'
   children?: TreeItem[]
 }
 
 export interface FolderNode {
   id: string
   name: string
+  mode?: 'GIT' | 'SNAPSHOT'
   permission: string
   children: FolderNode[]
   documents: Document[]
@@ -47,16 +51,45 @@ export interface Document {
   filePath: string
   createdAt: string
   updatedAt: string
+  hasUncommittedChanges?: boolean
+  folderMode?: 'GIT' | 'SNAPSHOT'
 }
 
-/** Convert FolderNode[] + documents to flat TreeItem[] */
+export interface UploadItem {
+  id: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  documentId: string
+  documentTitle: string
+  documentPath: string
+  url: string
+  createdAt: string
+}
+
+/** Convert FolderNode[] + documents to nested TreeItem[] */
 function flattenTree(folders: FolderNode[]): TreeItem[] {
   const result: TreeItem[] = []
   for (const folder of folders) {
-    result.push({ id: folder.id, name: folder.name, type: 'folder', children: flattenTree(folder.children) })
+    const children: TreeItem[] = flattenTree(folder.children)
     for (const doc of folder.documents) {
-      result.push({ id: doc.id, name: doc.title, type: 'document', createdAt: doc.createdAt })
+      children.push({
+        id: doc.id,
+        name: doc.title,
+        type: 'document',
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        filePath: doc.filePath,
+        folderMode: folder.mode ?? 'GIT',
+      })
     }
+    result.push({
+      id: folder.id,
+      name: folder.name,
+      type: 'folder',
+      folderMode: folder.mode ?? 'GIT',
+      children,
+    })
   }
   return result
 }
@@ -192,7 +225,7 @@ class ApiClient {
   }
 
   commitDocument(id: string, message: string) {
-    return this.request<void>(`/documents/${id}/commit`, {
+    return this.request<{ message: string; updatedAt?: string }>(`/documents/${id}/commit`, {
       method: 'POST',
       body: JSON.stringify({ message }),
     })
@@ -210,7 +243,11 @@ class ApiClient {
   }
 
   getRevisionContent(id: string, sha: string) {
-    return this.requestText(`/documents/${id}/revisions/${sha}`)
+    return this.request<{ content: string }>(`/documents/${id}/revisions/${sha}`).then((r) => r.content)
+  }
+
+  getRevisionDiff(id: string, sha: string) {
+    return this.request<{ diff: string }>(`/documents/${id}/revisions/${sha}/diff`).then((r) => r.diff)
   }
 
   restoreToRevision(id: string, sha: string) {
@@ -236,6 +273,28 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ title }),
     })
+  }
+
+  createFolder(name: string, parentId?: string | null) {
+    return this.request<{ id: string; name: string; mode: 'GIT' | 'SNAPSHOT' }>('/folders', {
+      method: 'POST',
+      body: JSON.stringify({ name, parentId: parentId ?? null }),
+    })
+  }
+
+  updateFolderSettings(folderId: string, data: { mode: 'GIT' | 'SNAPSHOT' }) {
+    return this.request<{ id: string; name: string; mode: 'GIT' | 'SNAPSHOT' }>(
+      `/folders/${folderId}/settings`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      },
+    )
+  }
+
+  listUploads(documentId?: string) {
+    const params = documentId ? `?documentId=${encodeURIComponent(documentId)}` : ''
+    return this.request<{ uploads: UploadItem[] }>(`/uploads${params}`).then((r) => r.uploads ?? [])
   }
 }
 

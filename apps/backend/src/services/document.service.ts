@@ -25,6 +25,7 @@ export interface DocumentMetadata {
   updatedAt: Date
   createdById: string | null
   hasUncommittedChanges: boolean
+  folderMode: 'GIT' | 'SNAPSHOT'
 }
 
 export interface DocumentRevision extends GitRevision {
@@ -54,7 +55,7 @@ export class DocumentService {
     // Validate folder exists
     const folder = await prisma.folder.findUnique({ 
       where: { id: folderId },
-      select: { gitPath: true }
+      select: { gitPath: true, mode: true }
     })
     if (!folder) {
       throw Object.assign(new Error('Folder not found'), { statusCode: 404 })
@@ -94,15 +95,16 @@ export class DocumentService {
       const initialContent = `# ${title}\n\n`
       await fs.writeFile(fullPath, initialContent, 'utf8')
 
-      // Git commit
-      const result = await this.git.commit(
-        `Create document ${title} [user:${user.login}]`,
-        author,
-        [filePath]
-      )
+      if (folder.mode === 'GIT') {
+        const result = await this.git.commit(
+          `Create document ${title} [user:${user.login}]`,
+          author,
+          [filePath]
+        )
 
-      if (!result) {
-        throw new Error('Failed to commit document creation')
+        if (!result) {
+          throw new Error('Failed to commit document creation')
+        }
       }
 
       // Create in database
@@ -117,7 +119,8 @@ export class DocumentService {
 
       return {
         ...document,
-        hasUncommittedChanges: false
+        hasUncommittedChanges: false,
+        folderMode: folder.mode,
       }
     })
   }
@@ -127,19 +130,25 @@ export class DocumentService {
    */
   async getDocument(id: string): Promise<DocumentMetadata | null> {
     const document = await prisma.document.findUnique({
-      where: { id }
+      where: { id },
+      include: { folder: { select: { mode: true } } },
     })
     
     if (!document) {
       return null
     }
 
-    // Check for uncommitted changes
-    const hasUncommittedChanges = await this.git.hasUncommittedChanges(document.filePath)
+    const folderMode = document.folder.mode
+    const hasUncommittedChanges =
+      folderMode === 'GIT'
+        ? await this.git.hasUncommittedChanges(document.filePath)
+        : false
 
+    const { folder: _folder, ...doc } = document
     return {
-      ...document,
-      hasUncommittedChanges
+      ...doc,
+      hasUncommittedChanges,
+      folderMode,
     }
   }
 
@@ -253,9 +262,6 @@ export class DocumentService {
     return await this.git.getRevisions(document.filePath, limit)
   }
 
-  /**
-   * Get content of specific revision
-   */
   async getRevisionContent(id: string, sha: string): Promise<string | null> {
     const document = await prisma.document.findUnique({
       where: { id },
@@ -271,6 +277,42 @@ export class DocumentService {
     } catch (error) {
       return null
     }
+  }
+
+  /**
+   * Get unified diff for a specific revision (vs its parent commit).
+   */
+  async getRevisionDiff(id: string, sha: string): Promise<string | null> {
+    const document = await prisma.document.findUnique({
+      where: { id },
+      select: { filePath: true, folder: { select: { mode: true } } },
+    })
+
+    if (!document || document.folder.mode !== 'GIT') {
+      return null
+    }
+
+    const revisions = await this.git.getRevisions(document.filePath)
+    const idx = revisions.findIndex((r) => r.sha === sha || r.sha.startsWith(sha))
+    const parentSha = idx >= 0 && idx < revisions.length - 1 ? revisions[idx + 1].sha : null
+
+    try {
+      if (parentSha) {
+        return await this.git.diff(document.filePath, parentSha, sha)
+      }
+      return await this.git.diffFromRoot(document.filePath, sha)
+    } catch {
+      return null
+    }
+  }
+
+  private async touchUpdatedAt(id: string): Promise<Date> {
+    const updated = await prisma.document.update({
+      where: { id },
+      data: { updatedAt: new Date() },
+      select: { updatedAt: true },
+    })
+    return updated.updatedAt
   }
 
   /**
@@ -302,7 +344,13 @@ export class DocumentService {
 
     await withFileLock(document.filePath, async () => {
       await this.git.restore(document.filePath, sha, author)
+
+      if (await this.hasActiveYjsSession(id)) {
+        await this.reloadYjsDocument(id)
+      }
     })
+
+    await this.touchUpdatedAt(id)
   }
 
   /**
@@ -311,7 +359,7 @@ export class DocumentService {
   async updateDocument(id: string, updates: UpdateDocumentInput, userId: string): Promise<DocumentMetadata> {
     const document = await prisma.document.findUnique({
       where: { id },
-      include: { folder: { select: { gitPath: true } } }
+      include: { folder: { select: { gitPath: true, mode: true } } },
     })
 
     if (!document) {
@@ -379,7 +427,8 @@ export class DocumentService {
 
       return {
         ...updated,
-        hasUncommittedChanges: false
+        hasUncommittedChanges: false,
+        folderMode: document.folder.mode,
       }
     })
   }
@@ -436,34 +485,37 @@ export class DocumentService {
   /**
    * Commit document changes with Yjs flush + git commit
    */
-  async commitDocument(id: string, message: string, userId: string): Promise<void> {
+  async commitDocument(id: string, message: string, userId: string): Promise<{ updatedAt: Date }> {
     const document = await prisma.document.findUnique({
       where: { id },
-      select: { filePath: true }
+      select: { filePath: true, folder: { select: { mode: true } } },
     })
 
     if (!document) {
       throw Object.assign(new Error('Document not found'), { statusCode: 404 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { login: true, gitName: true, gitEmail: true }
-    })
-
-    if (!user) {
-      throw Object.assign(new Error('User not found'), { statusCode: 404 })
-    }
-
-    const author: GitAuthor = {
-      name: user.gitName ?? user.login,
-      email: user.gitEmail ?? `${user.login}@mdcollab.local`
-    }
-
     await withFileLock(document.filePath, async () => {
-      // Flush Yjs document if active sessions exist
       if (await this.hasActiveYjsSession(id)) {
         await this.flushYjsDocument(id)
+      }
+
+      if (document.folder.mode === 'SNAPSHOT') {
+        return
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { login: true, gitName: true, gitEmail: true },
+      })
+
+      if (!user) {
+        throw Object.assign(new Error('User not found'), { statusCode: 404 })
+      }
+
+      const author: GitAuthor = {
+        name: user.gitName ?? user.login,
+        email: user.gitEmail ?? `${user.login}@mdcollab.local`,
       }
 
       const result = await this.git.commit(message, author, [document.filePath])
@@ -471,6 +523,9 @@ export class DocumentService {
         throw new Error('No changes to commit')
       }
     })
+
+    const updatedAt = await this.touchUpdatedAt(id)
+    return { updatedAt }
   }
 
   /**
