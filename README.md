@@ -148,6 +148,29 @@ The web dev server proxies `/api` to the backend and `/socket` to yjs-server. Yo
 docker compose -f infra/docker-compose.yml up -d postgres redis minio minio-init
 ```
 
+### Debug mode (isolated ports, no Docker rebuild)
+
+For quick feature testing alongside the full Docker stack, use the debug profile with separate ports and its own database:
+
+| Port | Service |
+|---|---|
+| 5174 | web (Vite dev) |
+| 3001 | backend |
+| 1236 / 1237 | yjs-server (HTTP / WS) |
+| 3101 | mcp-server |
+| 5433 | postgres |
+| 6380 | redis |
+| 9002 / 9003 | minIO API / console |
+
+```bash
+make -C infra debug-setup    # infra + migrate + seed (first time)
+pnpm dev:debug               # hot-reload all apps
+
+# Open http://localhost:5174  (admin / admin123)
+```
+
+Config lives in [infra/.env_debug](infra/.env_debug). Stop with `make -C infra debug-down`.
+
 ### Common commands
 
 ```bash
