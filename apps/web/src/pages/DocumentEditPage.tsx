@@ -43,6 +43,7 @@ export function DocumentEditPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isConnected, setIsConnected] = useState(false)
   const [scrollRatio, setScrollRatio] = useState(0)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Document stats
   const [stats, setStats] = useState({ words: 0, chars: 0, lines: 0 })
@@ -235,6 +236,10 @@ export function DocumentEditPage() {
     setShowDiscardConfirm(true)
   }
 
+  const handleRestore = (sha: string) => {
+    createToast(setToasts, `Restored to ${sha.substring(0, 7)}`, 'success')
+  }
+
   const confirmDiscard = async () => {
     setShowDiscardConfirm(false)
     try {
@@ -403,6 +408,9 @@ export function DocumentEditPage() {
           <button onClick={() => setShowShareDialog(true)}>
             Share
           </button>
+          <button onClick={() => setShowHistory(!showHistory)}>
+            {showHistory ? 'Close History' : 'History'}
+          </button>
           <button onClick={() => navigate('/')}>
             Dashboard
           </button>
@@ -505,6 +513,7 @@ export function DocumentEditPage() {
 
       {/* Status bar */}
       <StatusBar
+
         words={stats.words}
         chars={stats.chars}
         lines={stats.lines}
@@ -548,6 +557,23 @@ export function DocumentEditPage() {
           onConfirm={confirmDiscard}
           onCancel={() => setShowDiscardConfirm(false)}
         />
+      )}
+
+      {/* Revision history panel */}
+      {showHistory && (
+        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--color-border)' }}>
+              <h3 style={{ margin: 0 }}>Version History</h3>
+            </div>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', padding: '16px' }}>
+              <RevisionTree
+                documentId={id!}
+                onRestore={handleRestore}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast notifications */}
