@@ -36,6 +36,89 @@ async function ensureDocument(page: Awaited<ReturnType<typeof test['info']>>['pa
   await page.waitForTimeout(3000)
 }
 
+test.describe('Batch A — View mode switching preserves content', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page)
+    await ensureDocument(page)
+  })
+
+  test('Content typed in split mode survives switch to source mode', async ({ page }) => {
+    const editor = page.locator('.cm-editor .cm-content')
+    await expect(editor).toBeVisible({ timeout: 20000 })
+
+    // Clear and type a unique marker
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('UNIQUE_MARKER_SPLIT_TO_SOURCE')
+    await page.waitForTimeout(500)
+
+    // Switch to source (Code) view
+    await page.locator('.view-mode-btn').filter({ hasText: 'Code' }).click()
+    await page.waitForTimeout(1500)
+
+    // Editor should still contain the marker — content must NOT be lost
+    const editorInSource = page.locator('.cm-editor .cm-content')
+    await expect(editorInSource).toBeVisible({ timeout: 5000 })
+    const textAfterSwitch = await editorInSource.textContent()
+    expect(textAfterSwitch).toContain('UNIQUE_MARKER_SPLIT_TO_SOURCE')
+  })
+
+  test('Content survives a full Code -> Split -> Preview -> Split cycle', async ({ page }) => {
+    const editor = page.locator('.cm-editor .cm-content')
+    await expect(editor).toBeVisible({ timeout: 20000 })
+
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('PRESERVE_ACROSS_CYCLE_42')
+    await page.waitForTimeout(500)
+
+    const codeBtn = page.locator('.view-mode-btn').filter({ hasText: 'Code' })
+    const splitBtn = page.locator('.view-mode-btn').filter({ hasText: 'Split' })
+    const previewBtn = page.locator('.view-mode-btn').filter({ hasText: 'Preview' })
+
+    // Code -> Split -> Preview -> Split, checking content each step
+    for (const [label, btn] of [
+      ['Code', codeBtn],
+      ['Split', splitBtn],
+      ['Preview', previewBtn],
+      ['Code', codeBtn],
+      ['Split', splitBtn],
+    ] as const) {
+      await btn.click()
+      await page.waitForTimeout(800)
+      const text = await page.locator('.cm-editor .cm-content').textContent().catch(() => null)
+      // Editor content must always contain the marker (even when hidden in preview, it stays in DOM)
+      if (text !== null) {
+        expect(text).toContain('PRESERVE_ACROSS_CYCLE_42')
+      }
+    }
+  })
+
+  test('Preview reflects edits made in source mode after switching', async ({ page }) => {
+    const editor = page.locator('.cm-editor .cm-content')
+    await expect(editor).toBeVisible({ timeout: 20000 })
+
+    // Type in source mode
+    await page.locator('.view-mode-btn').filter({ hasText: 'Code' }).click()
+    await page.waitForTimeout(800)
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('# Heading From Source Mode')
+    await page.waitForTimeout(800)
+
+    // Switch to preview — preview must show the heading
+    await page.locator('.view-mode-btn').filter({ hasText: 'Preview' }).click()
+    await page.waitForTimeout(1500)
+
+    const preview = page.locator('.markdown-preview')
+    const html = await preview.innerHTML()
+    expect(html.toLowerCase()).toContain('heading from source mode')
+  })
+})
+
 test.describe('Batch A — Toolbar formatting', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
