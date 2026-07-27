@@ -435,11 +435,22 @@ export function DocumentEditPage() {
         </div>
       </div>
 
-      {/* Editor section */}
+      {/* Editor section
+          A SINGLE CollaborativeEditor instance stays mounted across all view
+          modes; switching Code/Split/Preview toggles pane visibility via CSS
+          (display) instead of mounting/unmounting components, so in-flight
+          edits are never lost on view-mode change. */}
       <div className="editor-section">
-        {viewMode === 'source' && (
-          <div className="code-editor-pane full-width">
+        <div className="editor-with-preview">
+          <div
+            className="code-editor-pane"
+            style={{
+              display: viewMode === 'preview' ? 'none' : 'flex',
+              flex: viewMode === 'split' ? `0 0 ${splitRatio * 100}%` : '1 1 100%',
+            }}
+          >
             <CollaborativeEditor
+              key={`doc-${id}`}
               documentId={id!}
               initialContent={content}
               onContentChange={handleContentChange}
@@ -451,23 +462,8 @@ export function DocumentEditPage() {
               onScrollRatio={setScrollRatio}
             />
           </div>
-        )}
 
-        {viewMode === 'split' && (
-          <div className="editor-with-preview">
-            <div className="code-editor-pane" style={{ flex: `0 0 ${splitRatio * 100}%` }}>
-              <CollaborativeEditor
-                documentId={id!}
-                initialContent={content}
-                onContentChange={handleContentChange}
-                onCursorChange={handleCursorChange}
-                onDocStats={handleDocStats}
-                onConnectionChange={(status) => {
-                  setIsConnected(status === 'connected')
-                }}
-                onScrollRatio={setScrollRatio}
-              />
-            </div>
+          {viewMode === 'split' && (
             <div
               className={`resize-handle${resizeRef.current.dragging ? ' dragging' : ''}`}
               onMouseDown={(e) => {
@@ -476,21 +472,20 @@ export function DocumentEditPage() {
                 resizeRef.current.startRatio = splitRatio
               }}
             />
-            <div className="preview-pane" style={{ flex: `0 0 ${(1 - splitRatio) * 100}%` }}>
-              <div className="preview-wrapper">
-                <MarkdownPreview content={previewContent || content} scrollRatio={scrollRatio} />
-              </div>
-            </div>
-          </div>
-        )}
+          )}
 
-        {viewMode === 'preview' && (
-          <div className="preview-pane full-width">
+          <div
+            className="preview-pane"
+            style={{
+              display: viewMode === 'source' ? 'none' : 'block',
+              flex: viewMode === 'split' ? `0 0 ${(1 - splitRatio) * 100}%` : '1 1 100%',
+            }}
+          >
             <div className="preview-wrapper">
-              <MarkdownPreview content={content} />
+              <MarkdownPreview content={previewContent || content} scrollRatio={scrollRatio} />
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Status bar */}
