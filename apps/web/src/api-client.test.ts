@@ -122,6 +122,18 @@ describe('api-client', () => {
       expect(JSON.parse(options.body)).toEqual({ login: 'admin', password: 'password123!' })
     })
 
+    it('sets Content-Type: application/json when sending a body', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: { id: 'u1', login: 'admin', role: 'ADMIN', displayName: null }, expiresAt: '2026-02-01' }),
+      })
+
+      await api.login('admin', 'password123!')
+      const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>
+      expect(headers?.['Content-Type']).toBe('application/json')
+    })
+
     it('throws on 401', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -140,6 +152,18 @@ describe('api-client', () => {
       await api.logout()
       expect(mockFetch.mock.calls[0][1]?.method).toBe('POST')
       expect(mockFetch.mock.calls[0][0]).toContain('/api/auth/logout')
+    })
+
+    it('does not set Content-Type: application/json (no body)', async () => {
+      // Regression: sending Content-Type: application/json with an empty body
+      // makes Fastify reject the request with 400
+      // "Body cannot be empty when content-type is set to 'application/json'".
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 204 })
+
+      await api.logout()
+      const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>
+      expect(headers?.['Content-Type']).toBeUndefined()
+      expect(headers?.['content-type']).toBeUndefined()
     })
   })
 

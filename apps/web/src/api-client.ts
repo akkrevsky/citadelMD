@@ -64,12 +64,18 @@ class ApiClient {
     path: string,
     options: RequestInit = {},
   ): Promise<T> {
+    // Only set Content-Type: application/json when there is a body. Sending
+    // the header with an empty body makes Fastify reject the request with
+    // 400 "Body cannot be empty when content-type is set to 'application/json'".
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> | undefined),
+    }
+    if (options.body !== undefined && options.body !== null) {
+      headers['Content-Type'] = 'application/json'
+    }
     const res = await fetch(`${this.baseUrl}${path}`, {
       credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string> | undefined),
-      },
+      headers,
       ...options,
     })
 
