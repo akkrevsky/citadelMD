@@ -4,6 +4,7 @@ import { api, type CurrentUser, type TreeItem } from '../api-client'
 import { formatCreatedAt } from '../utils/format'
 import { TabsProvider, useTabs } from '../contexts/TabsContext'
 import { TabBar } from '../components/TabBar'
+import logo from '../assets/logo.png'
 
 export interface DashboardContext {
   selectedFolderId: string | null
@@ -145,7 +146,10 @@ function DashboardWithTabs() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2>citadelMD</h2>
+          <div className="sidebar-brand">
+            <img src={logo} alt="citadelMD" className="sidebar-logo" />
+            <h2>citadelMD</h2>
+          </div>
         </div>
 
         <nav className="sidebar-nav">

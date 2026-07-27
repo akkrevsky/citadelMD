@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api-client'
+import logo from '../assets/logo.png'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -28,6 +29,7 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
+        <img src={logo} alt="citadelMD" className="login-logo" />
         <h1>citadelMD</h1>
         <p>Self-hosted collaborative Markdown editor</p>
 
