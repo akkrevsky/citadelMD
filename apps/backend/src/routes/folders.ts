@@ -8,6 +8,7 @@ import {
   getFolderPermissions,
   setFolderPermissions,
   getEffectivePermission,
+  updateFolderSettings,
 } from '../services/folder.service.js'
 
 export async function folderRoutes(app: FastifyInstance): Promise<void> {
@@ -111,6 +112,29 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
       const status = e.statusCode ?? 500
       return reply.status(status).send({
         error: { code: status === 404 ? 'FOLDER_NOT_FOUND' : 'FOLDER_DELETE_ERROR', message: e.message },
+      })
+    }
+  })
+
+  // PATCH /api/folders/:id/settings — folder versioning mode (git vs snapshot)
+  app.patch('/api/folders/:id/settings', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { mode } = request.body as { mode?: 'GIT' | 'SNAPSHOT' }
+
+    if (mode !== undefined && mode !== 'GIT' && mode !== 'SNAPSHOT') {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'mode must be GIT or SNAPSHOT' },
+      })
+    }
+
+    try {
+      const folder = await updateFolderSettings(id, { mode })
+      return reply.status(200).send(folder)
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      const status = e.statusCode ?? 500
+      return reply.status(status).send({
+        error: { code: status === 404 ? 'FOLDER_NOT_FOUND' : 'FOLDER_SETTINGS_ERROR', message: e.message },
       })
     }
   })

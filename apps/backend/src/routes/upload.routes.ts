@@ -132,6 +132,37 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     }
   })
 
+  // GET /api/uploads — list current user's uploads
+  app.get('/api/uploads', { preHandler: [verifyAuth] }, async (request) => {
+    const userId = request.user!.sub
+    const { documentId } = request.query as { documentId?: string }
+
+    const uploads = await prisma.upload.findMany({
+      where: {
+        createdById: userId,
+        ...(documentId ? { documentId } : {}),
+      },
+      include: {
+        document: { select: { title: true, filePath: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return {
+      uploads: uploads.map((u) => ({
+        id: u.id,
+        fileName: u.fileName,
+        mimeType: u.mimeType,
+        sizeBytes: u.sizeBytes,
+        documentId: u.documentId,
+        documentTitle: u.document.title,
+        documentPath: u.document.filePath,
+        url: `/api/uploads/${u.id}`,
+        createdAt: u.createdAt,
+      })),
+    }
+  })
+
   // GET /api/uploads/:id — file download
   app.get<{ Params: { id: string } }>('/api/uploads/:id', { preHandler: [verifyAuth] }, async (request, reply) => {
     const upload = await prisma.upload.findUnique({

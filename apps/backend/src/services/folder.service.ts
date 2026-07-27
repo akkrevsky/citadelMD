@@ -19,6 +19,7 @@ export interface UpdateFolderInput {
 export interface FolderTreeNode {
   id: string
   name: string
+  mode: 'GIT' | 'SNAPSHOT'
   permission: FolderPermissionLevel
   children: FolderTreeNode[]
   documents: {
@@ -153,6 +154,7 @@ interface FolderRow {
   parentId: string | null
   name: string
   gitPath: string
+  mode: 'GIT' | 'SNAPSHOT'
   createdAt: Date
   createdById: string | null
 }
@@ -421,6 +423,7 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
     return {
       id: f.id,
       name: f.name,
+      mode: f.mode,
       permission: 'ADMIN' as FolderPermissionLevel,
       children,
       documents,
@@ -497,6 +500,7 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
     return {
       id: f.id,
       name: f.name,
+      mode: f.mode,
       permission,
       children,
       documents,
@@ -511,6 +515,28 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
   }
 
   return { tree }
+}
+
+export async function updateFolderSettings(
+  folderId: string,
+  settings: { mode?: 'GIT' | 'SNAPSHOT' },
+) {
+  const folder = await prisma.folder.findUnique({ where: { id: folderId } })
+  if (!folder) {
+    throw Object.assign(new Error('Folder not found'), { statusCode: 404 })
+  }
+
+  if (settings.mode && settings.mode !== 'GIT' && settings.mode !== 'SNAPSHOT') {
+    throw Object.assign(new Error('Invalid folder mode'), { statusCode: 400 })
+  }
+
+  return prisma.folder.update({
+    where: { id: folderId },
+    data: {
+      ...(settings.mode ? { mode: settings.mode } : {}),
+    },
+    select: { id: true, name: true, mode: true, gitPath: true },
+  })
 }
 
 // ========== Permissions Management ==========

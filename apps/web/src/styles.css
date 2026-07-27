@@ -59,6 +59,7 @@
   --cm-heading: #79c0ff;
   /* Layout */
   --sidebar-width: 280px;
+  --sidebar-collapsed-width: 2.5rem;
   --header-height: 56px;
   /* Spacing scale */
   --space-xs: 0.25rem;
@@ -335,11 +336,21 @@ select:focus {
   overflow: hidden;
 }
 
-/* Collapsed state: slide the sidebar out of view */
+/* Collapsed state: narrow rail for the toggle */
 .dashboard-layout.sidebar-collapsed .sidebar {
-  width: 0;
-  opacity: 0;
-  border-right: none;
+  width: var(--sidebar-collapsed-width, 2.5rem);
+  opacity: 1;
+  border-right: 1px solid var(--color-border);
+}
+
+.dashboard-layout.sidebar-collapsed .sidebar-nav,
+.dashboard-layout.sidebar-collapsed .sidebar-footer,
+.dashboard-layout.sidebar-collapsed .sidebar-brand h2 {
+  display: none;
+}
+
+.dashboard-layout.sidebar-collapsed .main-area {
+  margin-left: 0;
 }
 
 /* Hamburger toggle — floats at the top-left, always reachable */
@@ -472,6 +483,170 @@ select:focus {
 
 .tree-item.folder {
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.tree-item-action {
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 0.25rem;
+  opacity: 0;
+}
+
+.tree-item.folder:hover .tree-item-action {
+  opacity: 1;
+}
+
+.tree-actions {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 0.75rem 0.5rem;
+}
+
+.tree-inline-form {
+  padding: 0 0.75rem 0.5rem;
+}
+
+.sidebar-view-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+}
+
+.sidebar-view-tabs button {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.sidebar-view-tabs button.active {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.tree-item.document.active .document-name {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.tree-item.document.doc-unsaved .document-name {
+  font-weight: 700;
+}
+
+.tree-item.document.doc-uncommitted {
+  background: rgba(210, 153, 34, 0.08);
+}
+
+.doc-state-marker {
+  color: var(--color-warning);
+  margin-right: 0.15rem;
+}
+
+.assets-panel {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.asset-card {
+  display: flex;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem;
+  background: var(--color-bg);
+}
+
+.asset-card:hover {
+  border-color: var(--color-primary);
+}
+
+.asset-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.asset-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+}
+
+.asset-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.asset-name {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-meta,
+.asset-doc {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.tab-context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.tab-context-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.tab-context-menu button:hover {
+  background: var(--color-bg);
+}
+
+.unsaved-star {
+  color: var(--color-warning);
+  margin-right: 0.15rem;
+}
+
+.document-updated-at {
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-settings-dialog {
+  max-width: 480px;
 }
 
 .tree-item.document {
@@ -572,6 +747,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 .main-header {
@@ -748,7 +924,7 @@ select:focus {
 .document-edit-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background: var(--color-bg);
 }
 
@@ -916,6 +1092,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
+  min-height: 0;
 }
 
 .editor-section .code-editor-pane {

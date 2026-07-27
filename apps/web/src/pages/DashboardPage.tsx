@@ -1,17 +1,24 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom'
+import { useEffect, useState, useCallback } from 'react'
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
-import { formatCreatedAt } from '../utils/format'
+import { formatUpdatedAt } from '../utils/string'
+import {
+  hasUnsavedChanges,
+  hasUncommittedChanges,
+  onDocumentStateChange,
+} from '../utils/unsaved'
 import { TabsProvider, useTabs } from '../contexts/TabsContext'
-import { TabBar } from '../components/TabBar'
+import { FolderSettingsDialog } from '../components/FolderSettingsDialog'
+import { AssetsPanel } from '../components/AssetsPanel'
+import { TabContextMenu } from '../components/TabContextMenu'
 import logo from '../assets/logo.png'
 
 export interface DashboardContext {
   selectedFolderId: string | null
   setSelectedFolderId: (id: string | null) => void
+  refreshTree: () => void
 }
 
-/** Public wrapper for the dashboard — provides TabsContext. */
 export default function DashboardPage() {
   return (
     <TabsProvider>
@@ -20,19 +27,50 @@ export default function DashboardPage() {
   )
 }
 
-/** Internal component — has access to both sidebar state and tabs. */
+type SidebarView = 'folders' | 'assets'
+
 function DashboardWithTabs() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [tree, setTree] = useState<TreeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [treeLoading, setTreeLoading] = useState(true)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [sidebarView, setSidebarView] = useState<SidebarView>('folders')
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
     localStorage.getItem('citadelmd-sidebar-collapsed') === '1',
   )
+  const [docStateTick, setDocStateTick] = useState(0)
+  const [folderSettings, setFolderSettings] = useState<{
+    id: string
+    name: string
+    mode: 'GIT' | 'SNAPSHOT'
+  } | null>(null)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingDoc, setCreatingDoc] = useState(false)
+  const [newDocTitle, setNewDocTitle] = useState('')
 
-  const { openPreview, pinTab, closeTab, allTabs, activeTabId, pinnedTabs, previewTab } = useTabs()
+  const {
+    openPreview,
+    pinTab,
+    closeTab,
+    activeTabId,
+    pinnedTabs,
+    previewTab,
+    closeOthers,
+    closeLeft,
+    closeRight,
+    setActive,
+  } = useTabs()
+
+  const activeDocId =
+    location.pathname.match(/^\/documents\/([^/]+)\/edit$/)?.[1] ?? activeTabId
+
+  const refreshTree = useCallback(() => {
+    return api.getTree().then(setTree).catch(() => {})
+  }, [])
 
   function toggleSidebar() {
     setSidebarCollapsed((prev) => {
@@ -43,76 +81,148 @@ function DashboardWithTabs() {
   }
 
   useEffect(() => {
+    return onDocumentStateChange(() => setDocStateTick((n) => n + 1))
+  }, [])
+
+  useEffect(() => {
     api
       .getMe()
-      .then((res) => {
-        setUser(res.user)
-      })
-      .catch(() => {
-        navigate('/login', { replace: true })
-      })
+      .then((res) => setUser(res.user))
+      .catch(() => navigate('/login', { replace: true }))
       .finally(() => setLoading(false))
   }, [navigate])
 
   useEffect(() => {
     if (!user) return
-    api
-      .getTree()
-      .then(setTree)
-      .catch(() => {
-        // tree unavailable is not fatal
-      })
-      .finally(() => setTreeLoading(false))
-  }, [user])
+    refreshTree().finally(() => setTreeLoading(false))
+  }, [user, refreshTree])
+
+  useEffect(() => {
+    function onSaved() {
+      refreshTree()
+    }
+    window.addEventListener('document-saved', onSaved)
+    return () => window.removeEventListener('document-saved', onSaved)
+  }, [refreshTree])
 
   function openDoc(item: TreeItem, pin: boolean) {
     const path = `/documents/${item.id}/edit`
     const tab = { id: item.id, title: item.name }
     if (pin) {
       pinTab(tab)
+      navigate(path, { state: { pin: true } })
     } else {
       openPreview(tab)
+      setActive(item.id)
+      navigate(path, { state: { preview: true } })
     }
-    navigate(path)
   }
 
-  function renderTree(items: TreeItem[], depth = 0) {
+  async function handleCreateFolder(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newFolderName.trim()) return
+    try {
+      await api.createFolder(newFolderName.trim(), selectedFolderId)
+      setNewFolderName('')
+      setCreatingFolder(false)
+      await refreshTree()
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleCreateDoc(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newDocTitle.trim()) return
+    const folderId = selectedFolderId ?? findFirstFolderId(tree)
+    if (!folderId) return
+    try {
+      const doc = await api.createDocument(folderId, newDocTitle.trim())
+      setNewDocTitle('')
+      setCreatingDoc(false)
+      await refreshTree()
+      pinTab({ id: doc.id, title: doc.title })
+      navigate(`/documents/${doc.id}/edit`, { state: { pin: true } })
+    } catch {
+      // ignore
+    }
+  }
+
+  function findFirstFolderId(items: TreeItem[]): string | null {
+    for (const item of items) {
+      if (item.type === 'folder') return item.id
+      if (item.children) {
+        const found = findFirstFolderId(item.children)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  function renderTree(items: TreeItem[], depth = 0, parentPath = '') {
     if (!Array.isArray(items)) return null
     return items.map((item) => {
       if (item.type === 'folder') {
+        const folderPath = parentPath ? `${parentPath}/${item.name}` : item.name
         return (
           <div key={item.id}>
             <div
               className={`tree-item folder${selectedFolderId === item.id ? ' active' : ''}`}
-              style={{ paddingLeft: `${1 + depth * 1}rem` }}
+              style={{ paddingLeft: `${0.75 + depth * 0.75}rem` }}
               onClick={() => setSelectedFolderId(item.id)}
             >
-              {item.name}
+              <span className="tree-item-label">{item.name}</span>
+              <button
+                className="tree-item-action"
+                title="Folder settings"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setFolderSettings({
+                    id: item.id,
+                    name: item.name,
+                    mode: item.folderMode ?? 'GIT',
+                  })
+                }}
+              >
+                ⚙
+              </button>
             </div>
-            {item.children && renderTree(item.children, depth + 1)}
+            {item.children && renderTree(item.children, depth + 1, folderPath)}
           </div>
         )
       }
+
+      const docPath = item.filePath ?? (parentPath ? `${parentPath}/${item.name}` : item.name)
+      const isActive = activeDocId === item.id
+      const unsaved = hasUnsavedChanges(item.id)
+      const uncommitted = hasUncommittedChanges(item.id)
+      void docStateTick
+
       return (
         <div
           key={item.id}
-          className="tree-item document"
-          style={{ paddingLeft: `${1 + depth * 1}rem` }}
+          className={`tree-item document${isActive ? ' active' : ''}${unsaved ? ' doc-unsaved' : ''}${uncommitted ? ' doc-uncommitted' : ''}`}
+          style={{ paddingLeft: `${0.75 + depth * 0.75}rem` }}
         >
           <a
             href={`/documents/${item.id}/edit`}
             className="document-link"
+            title={docPath}
             onClick={(e) => {
               e.preventDefault()
-              openDoc(item, false) // single click → preview
+              openDoc(item, false)
             }}
-            onDoubleClick={() => {
-              openDoc(item, true) // double click → pin
+            onDoubleClick={(e) => {
+              e.preventDefault()
+              openDoc(item, true)
             }}
           >
-            <span className="document-name">{item.name}</span>
-            {item.createdAt && (
-              <span className="doc-created-at">{formatCreatedAt(item.createdAt)}</span>
+            <span className="document-name">
+              {unsaved && <span className="doc-state-marker">*</span>}
+              {item.name}
+            </span>
+            {item.updatedAt && (
+              <span className="doc-created-at">{formatUpdatedAt(item.updatedAt)}</span>
             )}
           </a>
         </div>
@@ -130,7 +240,6 @@ function DashboardWithTabs() {
 
   return (
     <div className={`dashboard-layout${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-      {/* Toggle button — visible in both states */}
       <button
         className="sidebar-toggle"
         onClick={toggleSidebar}
@@ -143,12 +252,11 @@ function DashboardWithTabs() {
         </svg>
       </button>
 
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <img src={logo} alt="citadelMD" className="sidebar-logo" />
-            <h2>citadelMD</h2>
+            {!sidebarCollapsed && <h2>citadelMD</h2>}
           </div>
         </div>
 
@@ -157,32 +265,80 @@ function DashboardWithTabs() {
             Dashboard
           </NavLink>
           {user.role === 'ADMIN' && (
-            <NavLink
-              to="/admin/users"
-              className={({ isActive }) => (isActive ? 'active' : '')}
-            >
+            <NavLink to="/admin/users" className={({ isActive }) => (isActive ? 'active' : '')}>
               Admin Users
             </NavLink>
           )}
-          <NavLink
-            to="/profile"
-            className={({ isActive }) => (isActive ? 'active' : '')}
-          >
+          <NavLink to="/profile" className={({ isActive }) => (isActive ? 'active' : '')}>
             Profile &amp; Settings
           </NavLink>
 
-          {/* Folder tree */}
           <div className="tree-section">
-            <div className="tree-section-title">Folders</div>
-            <button className="btn btn-sm btn-primary tree-action-btn" onClick={() => navigate('/')}>
-              + New Document
-            </button>
-            {treeLoading ? (
-              <div className="tree-empty">Loading...</div>
-            ) : tree.length === 0 ? (
-              <div className="tree-empty">No folders yet</div>
+            <div className="sidebar-view-tabs">
+              <button
+                type="button"
+                className={sidebarView === 'folders' ? 'active' : ''}
+                onClick={() => setSidebarView('folders')}
+              >
+                Folders
+              </button>
+              <button
+                type="button"
+                className={sidebarView === 'assets' ? 'active' : ''}
+                onClick={() => setSidebarView('assets')}
+              >
+                Assets
+              </button>
+            </div>
+
+            {sidebarView === 'folders' ? (
+              <>
+                <div className="tree-actions">
+                  <button
+                    className="btn btn-sm btn-primary tree-action-btn"
+                    onClick={() => setCreatingDoc((v) => !v)}
+                  >
+                    + Note
+                  </button>
+                  <button
+                    className="btn btn-sm tree-action-btn"
+                    onClick={() => setCreatingFolder((v) => !v)}
+                  >
+                    + Folder
+                  </button>
+                </div>
+                {creatingFolder && (
+                  <form className="inline-form tree-inline-form" onSubmit={handleCreateFolder}>
+                    <input
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      placeholder="Folder name"
+                      autoFocus
+                    />
+                    <button type="submit" className="btn btn-sm btn-primary">Add</button>
+                  </form>
+                )}
+                {creatingDoc && (
+                  <form className="inline-form tree-inline-form" onSubmit={handleCreateDoc}>
+                    <input
+                      value={newDocTitle}
+                      onChange={(e) => setNewDocTitle(e.target.value)}
+                      placeholder="Note title"
+                      autoFocus
+                    />
+                    <button type="submit" className="btn btn-sm btn-primary">Add</button>
+                  </form>
+                )}
+                {treeLoading ? (
+                  <div className="tree-empty">Loading...</div>
+                ) : tree.length === 0 ? (
+                  <div className="tree-empty">No folders yet</div>
+                ) : (
+                  renderTree(tree)
+                )}
+              </>
             ) : (
-              renderTree(tree)
+              <AssetsPanel />
             )}
           </div>
         </nav>
@@ -197,78 +353,111 @@ function DashboardWithTabs() {
         </div>
       </aside>
 
-      {/* Main content area with tab bar */}
       <main className="main-area">
         <TabBarMain
           pinnedTabs={pinnedTabs}
-          previewTabId={previewTab?.id ?? null}
-          activeTabId={activeTabId}
-          onSelect={(id) => navigate(`/documents/${id}/edit`)}
+          previewTab={previewTab}
+          activeTabId={activeDocId}
+          onSelect={(id) => navigate(`/documents/${id}/edit`, { state: { pin: true } })}
           onClose={(id) => closeTab(id)}
-          onPin={(id) => pinTab({ id, title: previewTab?.title ?? id })}
+          onCloseOthers={closeOthers}
+          onCloseLeft={closeLeft}
+          onCloseRight={closeRight}
         />
-        <Outlet context={{ selectedFolderId, setSelectedFolderId } satisfies DashboardContext} />
+        <Outlet context={{ selectedFolderId, setSelectedFolderId, refreshTree } satisfies DashboardContext} />
       </main>
+
+      {folderSettings && (
+        <FolderSettingsDialog
+          folderId={folderSettings.id}
+          folderName={folderSettings.name}
+          currentMode={folderSettings.mode}
+          onClose={() => setFolderSettings(null)}
+          onSaved={(mode) => {
+            setFolderSettings(null)
+            refreshTree()
+            void mode
+          }}
+        />
+      )}
     </div>
   )
 }
 
-/**
- * Tab bar above the document content.
- * Pinned tabs show with a close button. Preview tabs are italicised.
- */
 function TabBarMain({
   pinnedTabs,
-  previewTabId,
+  previewTab,
   activeTabId,
   onSelect,
   onClose,
-  onPin,
+  onCloseOthers,
+  onCloseLeft,
+  onCloseRight,
 }: {
   pinnedTabs: { id: string; title: string }[]
-  previewTabId: string | null
+  previewTab: { id: string; title: string } | null
   activeTabId: string | null
   onSelect: (id: string) => void
   onClose: (id: string) => void
-  onPin: (id: string) => void
+  onCloseOthers: (id: string) => void
+  onCloseLeft: (id: string) => void
+  onCloseRight: (id: string) => void
 }) {
-  const allTabs = [...pinnedTabs, ...(previewTabId ? [{ id: previewTabId, title: '' }] : [])]
-  if (allTabs.length === 0) return null
+  const [docStateTick, setDocStateTick] = useState(0)
+  const [menu, setMenu] = useState<{ x: number; y: number; tabId: string } | null>(null)
+
+  useEffect(() => onDocumentStateChange(() => setDocStateTick((n) => n + 1)), [])
+  void docStateTick
+
+  const displayTabs = pinnedTabs
+  const showPreviewActive = previewTab && activeTabId === previewTab.id && !pinnedTabs.some((t) => t.id === previewTab.id)
+
+  if (displayTabs.length === 0 && !showPreviewActive) return null
 
   return (
     <div className="tab-bar">
-      {allTabs.map((tab) => {
-        const isPreview = previewTabId === tab.id
+      {displayTabs.map((tab) => {
         const isActive = tab.id === activeTabId
+        const unsaved = hasUnsavedChanges(tab.id)
         return (
           <div
             key={tab.id}
-            className={`tab-item${isActive ? ' active' : ''}${isPreview ? ' preview' : ''}`}
+            className={`tab-item${isActive ? ' active' : ''}`}
             onClick={() => onSelect(tab.id)}
-            title={isPreview ? 'Double-click to pin' : ''}
-            onDoubleClick={() => {
-              if (isPreview) onPin(tab.id)
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setMenu({ x: e.clientX, y: e.clientY, tabId: tab.id })
             }}
           >
-            <span className="tab-label">{tab.title || tab.id.slice(0, 8)}</span>
-            {/* Only pinned tabs get a close button */}
-            {pinnedTabs.some((t) => t.id === tab.id) && (
-              <button
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onClose(tab.id)
-                }}
-                title="Close"
-              >
-                <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
-                  <path d="M4.72 4.72a.75.75 0 011.06 0L8 6.94l2.22-2.22a.75.75 0 111.06 1.06L9.06 8l2.22 2.22a.75.75 0 11-1.06 1.06L8 9.06l-2.22 2.22a.75.75 0 01-1.06-1.06L6.94 8 4.72 5.78a.75.75 0 010-1.06z"/>
-                </svg>
-              </button>
-            )}
+            <span className="tab-label">
+              {unsaved && <span className="unsaved-star">*</span>}
+              {tab.title || tab.id.slice(0, 8)}
+            </span>
+            <button
+              className="tab-close"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose(tab.id)
+              }}
+              title="Close"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+                <path d="M4.72 4.72a.75.75 0 011.06 0L8 6.94l2.22-2.22a.75.75 0 111.06 1.06L9.06 8l2.22 2.22a.75.75 0 11-1.06 1.06L8 9.06l-2.22 2.22a.75.75 0 01-1.06-1.06L6.94 8 4.72 5.78a.75.75 0 010-1.06z"/>
+              </svg>
+            </button>
           </div>
         )
       })}
+      {menu && (
+        <TabContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onCloseOthers={() => onCloseOthers(menu.tabId)}
+          onCloseLeft={() => onCloseLeft(menu.tabId)}
+          onCloseRight={() => onCloseRight(menu.tabId)}
+        />
+      )}
     </div>
   )
 }

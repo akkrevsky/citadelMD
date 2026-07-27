@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, Suspense } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { CollaborativeEditor } from '../components/CollaborativeEditor.js'
 import { MarkdownPreview } from '../components/MarkdownPreview.js'
 import { EditorToolbar, type ViewMode } from '../components/EditorToolbar.js'
@@ -13,7 +13,8 @@ import { useFileUpload } from '../hooks/useFileUpload.js'
 import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
 import { useTabs } from '../contexts/TabsContext.js'
-import { setUnsavedChanges, clearUnsavedChanges } from '../utils/unsaved.js'
+import { setUnsavedChanges, clearUnsavedChanges, setUncommittedChanges, clearUncommittedChanges } from '../utils/unsaved.js'
+import { truncate, formatUpdatedAt } from '../utils/string.js'
 import '../styles/editor.css'
 import '../styles/preview.css'
 import '../styles/toolbar.css'
@@ -25,8 +26,9 @@ const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor
 export function DocumentEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { theme, toggleTheme } = useTheme()
-  const { openPreview, pinTab, setActive, pinnedTabs } = useTabs()
+  const { openPreview, pinTab, setActive, updateTabTitle } = useTabs()
   const [doc, setDoc] = useState<Document | null>(null)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
@@ -71,16 +73,24 @@ export function DocumentEditPage() {
       return
     }
 
-    // When a document is opened directly (e.g. via URL or Ctrl+click),
-    // register it as a pinned tab if it's not already pinned.
-    const alreadyPinned = pinnedTabs.some((t) => t.id === id)
-    if (!alreadyPinned) {
-      pinTab({ id, title: '' }) // title is loaded later
+    const navState = location.state as { preview?: boolean; pin?: boolean } | null
+    const isPreviewNav = navState?.preview === true
+    const isPinNav = navState?.pin === true
+
+    if (isPreviewNav) {
+      openPreview({ id, title: '' })
+      setActive(id)
+    } else if (isPinNav) {
+      pinTab({ id, title: '' })
+      setActive(id)
+    } else {
+      openPreview({ id, title: '' })
+      setActive(id)
     }
-    setActive(id)
 
     loadDocument()
-  }, [id, navigate, pinnedTabs, pinTab, setActive])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
 
   const loadDocument = async () => {
     try {
@@ -88,6 +98,14 @@ export function DocumentEditPage() {
 
       const docResponse = await api.getDocument(id!)
       setDoc(docResponse)
+      if (docResponse.hasUncommittedChanges) {
+        setUncommittedChanges(id!)
+      } else {
+        clearUncommittedChanges(id!)
+      }
+
+      // Update tab title once metadata is loaded
+      updateTabTitle(id!, docResponse.title)
 
       const contentResponse = await api.exportDocument(id!)
       setContent(contentResponse)
@@ -99,6 +117,7 @@ export function DocumentEditPage() {
       setHasChanges(false)
       setCommitMessage('')
       clearUnsavedChanges(id!)
+      clearUncommittedChanges(id!)
 
     } catch (error) {
       console.error('Failed to load document:', error)
@@ -115,6 +134,7 @@ export function DocumentEditPage() {
     if (contentRef.current !== content) {
       setHasChanges(true)
       setUnsavedChanges(id!)
+      setUncommittedChanges(id!)
     }
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
@@ -201,11 +221,19 @@ export function DocumentEditPage() {
   const handleSave = async () => {
     try {
       setIsCommitting(true)
-      await api.commitDocument(id!, 'Auto-save')
+      const res = await api.commitDocument(id!, 'Auto-save')
       setHasChanges(false)
       clearUnsavedChanges(id!)
+      clearUncommittedChanges(id!)
+      clearUncommittedChanges(id!)
+      if (res.updatedAt && doc) {
+        setDoc({ ...doc, updatedAt: res.updatedAt })
+      }
+      window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
+      createToast(setToasts, 'Saved', 'success')
     } catch (error) {
       console.error('Save failed:', error)
+      createToast(setToasts, 'Save failed', 'error')
     } finally {
       setIsCommitting(false)
     }
@@ -223,6 +251,11 @@ export function DocumentEditPage() {
       setCommitMessage('')
       setHasChanges(false)
       clearUnsavedChanges(id!)
+      clearUncommittedChanges(id!)
+      clearUncommittedChanges(id!)
+      const refreshed = await api.getDocument(id!)
+      setDoc(refreshed)
+      window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
       createToast(setToasts, 'Changes committed successfully!', 'success')
     } catch (error) {
       console.error('Commit failed:', error)
@@ -236,8 +269,10 @@ export function DocumentEditPage() {
     setShowDiscardConfirm(true)
   }
 
-  const handleRestore = (sha: string) => {
-    createToast(setToasts, `Restored to ${sha.substring(0, 7)}`, 'success')
+  const handleRestore = async (_sha: string) => {
+    createToast(setToasts, `Restored to ${_sha.substring(0, 7)}`, 'success')
+    await loadDocument()
+    window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
   }
 
   const confirmDiscard = async () => {
@@ -247,6 +282,7 @@ export function DocumentEditPage() {
       await api.discardDocument(id!)
       setHasChanges(false)
       clearUnsavedChanges(id!)
+      clearUncommittedChanges(id!)
       createToast(setToasts, 'Changes discarded', 'info')
       await loadDocument()
     } catch (error) {
@@ -346,6 +382,11 @@ export function DocumentEditPage() {
   }
 
   const readTime = Math.max(1, Math.round(stats.words / 200))
+  const usesGit = doc.folderMode !== 'SNAPSHOT'
+  const folderPath = doc.filePath.includes('/')
+    ? doc.filePath.slice(0, doc.filePath.lastIndexOf('/'))
+    : ''
+  const fullTitlePath = folderPath ? `${folderPath}/${doc.title}` : doc.title
 
   return (
     <div
@@ -364,8 +405,14 @@ export function DocumentEditPage() {
             onBlur={handleTitleBlur}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
             placeholder="Document title"
+            title={fullTitlePath}
           />
-          <span className="document-path">{doc.filePath}</span>
+          <span className="document-path" title={fullTitlePath}>
+            {truncate(doc.title, 25)}
+            {doc.updatedAt && (
+              <span className="document-updated-at"> · {formatUpdatedAt(doc.updatedAt)}</span>
+            )}
+          </span>
         </div>
 
         <div className="document-actions">
@@ -381,36 +428,42 @@ export function DocumentEditPage() {
             {isCommitting ? 'Saving...' : 'Save'}
           </button>
 
-          <div className="commit-section">
-            <input
-              type="text"
-              placeholder="Commit message"
-              value={commitMessage}
-              onChange={(e) => setCommitMessage(e.target.value)}
-              disabled={isCommitting}
-            />
-            <button
-              onClick={handleCommit}
-              disabled={!commitMessage.trim() || isCommitting}
-            >
-              {isCommitting ? 'Committing...' : 'Commit'}
-            </button>
-          </div>
+          {usesGit && (
+            <div className="commit-section">
+              <input
+                type="text"
+                placeholder="Commit message"
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                disabled={isCommitting}
+              />
+              <button
+                onClick={handleCommit}
+                disabled={!commitMessage.trim() || isCommitting}
+              >
+                {isCommitting ? 'Committing...' : 'Commit'}
+              </button>
+            </div>
+          )}
 
-          <button
-            onClick={handleDiscard}
-            disabled={isDiscarding || !hasChanges}
-            className="discard-button"
-          >
-            {isDiscarding ? 'Discarding...' : 'Discard'}
-          </button>
+          {usesGit && (
+            <button
+              onClick={handleDiscard}
+              disabled={isDiscarding || !hasChanges}
+              className="discard-button"
+            >
+              {isDiscarding ? 'Discarding...' : 'Discard'}
+            </button>
+          )}
 
           <button onClick={() => setShowShareDialog(true)}>
             Share
           </button>
-          <button onClick={() => setShowHistory(!showHistory)}>
-            {showHistory ? 'Close History' : 'History'}
-          </button>
+          {usesGit && (
+            <button onClick={() => setShowHistory(!showHistory)}>
+              {showHistory ? 'Close History' : 'History'}
+            </button>
+          )}
           <button onClick={() => navigate('/')}>
             Dashboard
           </button>

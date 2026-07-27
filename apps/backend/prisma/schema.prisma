@@ -40,16 +40,22 @@ model User {
 
 // =============== Папки ===============
 
+enum FolderMode {
+  GIT
+  SNAPSHOT
+}
+
 model Folder {
-  id          String    @id @default(uuid()) @db.Uuid
-  parentId    String?   @map("parent_id") @db.Uuid
-  parent      Folder?   @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Folder[]  @relation("FolderHierarchy")
+  id          String     @id @default(uuid()) @db.Uuid
+  parentId    String?    @map("parent_id") @db.Uuid
+  parent      Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Folder[]   @relation("FolderHierarchy")
   name        String
-  gitPath     String    @map("git_path")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  createdById String?   @map("created_by") @db.Uuid
-  createdBy   User?     @relation(fields: [createdById], references: [id])
+  gitPath     String     @map("git_path")
+  mode        FolderMode @default(GIT)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  createdById String?    @map("created_by") @db.Uuid
+  createdBy   User?      @relation(fields: [createdById], references: [id])
 
   documents   Document[]
   permissions FolderPermission[]

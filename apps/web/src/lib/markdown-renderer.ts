@@ -1,6 +1,9 @@
 import MarkdownIt from 'markdown-it'
+import texmath from 'markdown-it-texmath'
+import katex from 'katex'
 import DOMPurify from 'dompurify'
 import type { Config as DOMPurifyConfig } from 'dompurify'
+import 'katex/dist/katex.min.css'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
   ADD_ATTR: ['id'],
@@ -8,12 +11,13 @@ const PURIFY_CONFIG: DOMPurifyConfig = {
     'svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon',
     'ellipse', 'g', 'defs', 'use', 'image', 'text', 'tspan', 'marker',
     'stop', 'linearGradient', 'radialGradient', 'clipPath', 'mask',
+    'span', 'math', 'annotation',
   ],
   ALLOWED_ATTR: [
     'class', 'id', 'href', 'src', 'alt', 'width', 'height',
     'viewBox', 'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
     'x', 'y', 'dx', 'dy', 'rx', 'ry', 'points', 'transform',
-    'xmlns', 'preserveAspectRatio',
+    'xmlns', 'preserveAspectRatio', 'style', 'aria-hidden',
   ],
   ALLOW_DATA_ATTR: false,
 }
@@ -23,6 +27,7 @@ let md: MarkdownIt | null = null
 export function getMarkdownIt(): MarkdownIt {
   if (md) return md
   md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false })
+  md.use(texmath, { engine: katex, delimiters: 'dollars', katexOptions: { throwOnError: false } })
   return md
 }
 

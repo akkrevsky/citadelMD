@@ -125,6 +125,11 @@ export class GitService {
     return this.git.diff([fromSha, toSha, '--', filePath])
   }
 
+  /** Diff from empty tree to sha (first commit of a file). */
+  async diffFromRoot(filePath: string, sha: string): Promise<string> {
+    return this.git.diff(['--root', sha, '--', filePath])
+  }
+
   async show(filePath: string, sha: string): Promise<string> {
     return this.git.show([`${sha}:${filePath}`])
   }
