@@ -204,6 +204,25 @@ class ApiClient {
     })
   }
 
+  getRevisions(id: string, limit?: number) {
+    const params = limit ? `?limit=${limit}` : ''
+    return this.request<{ revisions: any[] }>(`/documents/${id}/revisions${params}`)
+  }
+
+  getRevisionContent(id: string, sha: string) {
+    return this.requestText(`/documents/${id}/revisions/${sha}`)
+  }
+
+  restoreToRevision(id: string, sha: string) {
+    return this.request<void>(`/documents/${id}/revisions/${sha}/restore`, {
+      method: 'POST',
+    })
+  }
+
+  getDiff(id: string) {
+    return this.request<{ diff: string }>(`/documents/${id}/diff`)
+  }
+
   updateDocument(id: string, data: { title?: string }) {
     return this.request<Document>(`/documents/${id}`, {
       method: 'PATCH',

@@ -1,6 +1,6 @@
 import React from 'react'
 
-interface StatusBarProps {
+export interface StatusBarProps {
   words: number
   chars: number
   lines: number
@@ -10,6 +10,7 @@ interface StatusBarProps {
   isConnected?: boolean
   connectionStatus?: 'connected' | 'disconnected' | 'connecting'
   readTime?: number
+  hasUncommittedChanges?: boolean
 }
 
 export function StatusBar({
@@ -22,6 +23,7 @@ export function StatusBar({
   isConnected = false,
   connectionStatus = 'disconnected',
   readTime,
+  hasUncommittedChanges = false,
 }: StatusBarProps) {
   const status = isConnected ? 'connected' : connectionStatus
 
@@ -46,6 +48,11 @@ export function StatusBar({
       </div>
 
       <div className="status-bar-right">
+        {hasUncommittedChanges && (
+          <span className="unsaved-badge" title="Uncommitted changes">
+            <span className="unsaved-dot">●</span> Unsaved
+          </span>
+        )}
         {readTime !== undefined && (
           <span className="status-bar-item">
             <span className="value">~{readTime} min read</span>

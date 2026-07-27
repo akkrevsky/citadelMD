@@ -8,10 +8,12 @@ import { UploadIndicator } from '../components/UploadIndicator.js'
 import { ShareDialog } from '../components/ShareDialog.js'
 import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
 import { ConfirmModal } from '../components/ConfirmModal.js'
+import { RevisionTree } from '../components/RevisionTree.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
 import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
 import { useTabs } from '../contexts/TabsContext.js'
+import { setUnsavedChanges, clearUnsavedChanges } from '../utils/unsaved.js'
 import '../styles/editor.css'
 import '../styles/preview.css'
 import '../styles/toolbar.css'
@@ -95,6 +97,7 @@ export function DocumentEditPage() {
       contentRef.current = contentResponse
       setHasChanges(false)
       setCommitMessage('')
+      clearUnsavedChanges(id!)
 
     } catch (error) {
       console.error('Failed to load document:', error)
@@ -110,6 +113,7 @@ export function DocumentEditPage() {
     contentRef.current = newContent
     if (contentRef.current !== content) {
       setHasChanges(true)
+      setUnsavedChanges(id!)
     }
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
@@ -198,6 +202,7 @@ export function DocumentEditPage() {
       setIsCommitting(true)
       await api.commitDocument(id!, 'Auto-save')
       setHasChanges(false)
+      clearUnsavedChanges(id!)
     } catch (error) {
       console.error('Save failed:', error)
     } finally {
@@ -216,6 +221,7 @@ export function DocumentEditPage() {
       await api.commitDocument(id!, commitMessage)
       setCommitMessage('')
       setHasChanges(false)
+      clearUnsavedChanges(id!)
       createToast(setToasts, 'Changes committed successfully!', 'success')
     } catch (error) {
       console.error('Commit failed:', error)
@@ -235,6 +241,7 @@ export function DocumentEditPage() {
       setIsDiscarding(true)
       await api.discardDocument(id!)
       setHasChanges(false)
+      clearUnsavedChanges(id!)
       createToast(setToasts, 'Changes discarded', 'info')
       await loadDocument()
     } catch (error) {
@@ -507,6 +514,7 @@ export function DocumentEditPage() {
         isConnected={isConnected}
         connectionStatus={isConnected ? 'connected' : 'disconnected'}
         readTime={readTime}
+        hasUncommittedChanges={hasChanges}
       />
 
       {/* Excalidraw modal */}
