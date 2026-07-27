@@ -8,6 +8,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
+    "dev:debug": "DOTENV_CONFIG_PATH=../../infra/.env_debug PORT=3101 tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest"

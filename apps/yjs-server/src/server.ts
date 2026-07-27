@@ -6,8 +6,8 @@ let yjsWS: YjsWebSocketServer
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
 
-  // Initialize WebSocket server on port 1235 (HTTP stays on 1234)
-  yjsWS = new YjsWebSocketServer(1235)
+  const wsPort = Number(process.env.YJS_WS_PORT ?? 1235)
+  yjsWS = new YjsWebSocketServer(wsPort)
 
   app.get('/health', async () => {
     return { status: 'ok', service: 'yjs-server' }
@@ -67,7 +67,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
 export async function startServer(): Promise<void> {
   const app = await buildServer()
-  const port = Number(process.env.PORT ?? 1234)
+  const port = Number(process.env.YJS_HTTP_PORT ?? process.env.PORT ?? 1234)
   await app.listen({ port, host: '0.0.0.0' })
   console.log(`[yjs-server] listening on :${port} with WebSocket and internal endpoints`)
 }

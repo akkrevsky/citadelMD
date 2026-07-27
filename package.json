@@ -11,7 +11,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "build": "pnpm -r build",
-    "dev": "pnpm -r --parallel dev"
+    "dev": "pnpm -r --parallel dev",
+    "dev:debug": "pnpm --parallel -F backend -F yjs-server -F web -F mcp-server dev:debug"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
