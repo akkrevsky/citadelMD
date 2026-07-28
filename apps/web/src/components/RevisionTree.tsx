@@ -11,6 +11,7 @@ export interface Revision {
 
 interface RevisionTreeProps {
   documentId: string
+  refreshToken?: number
   onRestore: (sha: string) => void
 }
 
@@ -52,7 +53,7 @@ function DiffView({ diff }: { diff: string }) {
   )
 }
 
-export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
+export function RevisionTree({ documentId, refreshToken = 0, onRestore }: RevisionTreeProps) {
   const [revisions, setRevisions] = useState<Revision[]>([])
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const [diffs, setDiffs] = useState<Map<string, DiffStats>>(new Map())
@@ -62,9 +63,11 @@ export function RevisionTree({ documentId, onRestore }: RevisionTreeProps) {
   const [uncommittedDiff, setUncommittedDiff] = useState<string | null>(null)
 
   useEffect(() => {
+    setExpandedKey(null)
+    setDiffs(new Map())
     loadRevisions()
     loadUncommittedDiff()
-  }, [documentId])
+  }, [documentId, refreshToken])
 
   async function loadRevisions() {
     setLoadError(null)
