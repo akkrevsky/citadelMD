@@ -46,6 +46,7 @@ export function DocumentEditPage() {
   const [isConnected, setIsConnected] = useState(false)
   const [scrollRatio, setScrollRatio] = useState(0)
   const [showHistory, setShowHistory] = useState(false)
+  const [historyTick, setHistoryTick] = useState(0)
 
   // Document stats
   const [stats, setStats] = useState({ words: 0, chars: 0, lines: 0 })
@@ -102,13 +103,7 @@ export function DocumentEditPage() {
 
       const docResponse = await api.getDocument(id!)
       setDoc(docResponse)
-      if (docResponse.hasUncommittedChanges) {
-        setUncommittedChanges(id!)
-      } else {
-        clearUncommittedChanges(id!)
-      }
 
-      // Update tab title once metadata is loaded
       updateTabTitle(id!, docResponse.title)
 
       if (docResponse.kind === 'EXCALIDRAW') {
@@ -118,15 +113,20 @@ export function DocumentEditPage() {
 
       const contentResponse = await api.exportDocument(id!)
       setContent(contentResponse)
-      // Reset preview + save-detection state for the newly loaded document.
-      // Without this, navigating between documents keeps the previous
-      // document's preview content (stale previewContent is truthy).
       setPreviewContent(contentResponse)
+      baselineRef.current = contentResponse
       contentRef.current = contentResponse
-      setHasChanges(false)
       setCommitMessage('')
-      clearUnsavedChanges(id!)
-      clearUncommittedChanges(id!)
+
+      const dirty = docResponse.hasUncommittedChanges ?? false
+      setHasChanges(dirty)
+      if (dirty) {
+        setUnsavedChanges(id!)
+        setUncommittedChanges(id!)
+      } else {
+        clearUnsavedChanges(id!)
+        clearUncommittedChanges(id!)
+      }
 
     } catch (error) {
       console.error('Failed to load document:', error)
@@ -136,23 +136,27 @@ export function DocumentEditPage() {
     }
   }
 
-  // Track content changes for save detection and preview
+  // Baseline content for change detection (last loaded or committed state)
+  const baselineRef = useRef('')
   const contentRef = useRef(content)
   const handleContentChange = useCallback((newContent: string) => {
     contentRef.current = newContent
-    if (contentRef.current !== content) {
-      setHasChanges(true)
+    const changed = newContent !== baselineRef.current
+    setHasChanges(changed)
+    if (changed) {
       setUnsavedChanges(id!)
       setUncommittedChanges(id!)
+    } else {
+      clearUnsavedChanges(id!)
+      clearUncommittedChanges(id!)
     }
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
-    // Debounce preview update (300ms) to avoid re-render on every keystroke
     if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
     previewDebounceRef.current = setTimeout(() => {
       setPreviewContent(newContent)
     }, 300)
-  }, [content])
+  }, [id])
 
   const handleFormat = useCallback((type: string) => {
     const detail: Record<string, unknown> = {}
@@ -221,18 +225,25 @@ export function DocumentEditPage() {
     setStats(s)
   }, [])
 
+  function markSavedBaseline() {
+    baselineRef.current = contentRef.current
+    setContent(contentRef.current)
+    setPreviewContent(contentRef.current)
+    setHasChanges(false)
+    clearUnsavedChanges(id!)
+    clearUncommittedChanges(id!)
+    setHistoryTick((t) => t + 1)
+    window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
+  }
+
   const handleSave = async () => {
     try {
       setIsCommitting(true)
       const res = await api.commitDocument(id!, 'Auto-save')
-      setHasChanges(false)
-      clearUnsavedChanges(id!)
-      clearUncommittedChanges(id!)
-      clearUncommittedChanges(id!)
       if (res.updatedAt && doc) {
         setDoc({ ...doc, updatedAt: res.updatedAt })
       }
-      window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
+      markSavedBaseline()
       createToast(setToasts, 'Saved', 'success')
     } catch (error) {
       console.error('Save failed:', error)
@@ -252,13 +263,9 @@ export function DocumentEditPage() {
       setIsCommitting(true)
       await api.commitDocument(id!, commitMessage)
       setCommitMessage('')
-      setHasChanges(false)
-      clearUnsavedChanges(id!)
-      clearUncommittedChanges(id!)
-      clearUncommittedChanges(id!)
       const refreshed = await api.getDocument(id!)
       setDoc(refreshed)
-      window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
+      markSavedBaseline()
       createToast(setToasts, 'Changes committed successfully!', 'success')
     } catch (error) {
       console.error('Commit failed:', error)
@@ -275,7 +282,7 @@ export function DocumentEditPage() {
   const handleRestore = async (_sha: string) => {
     createToast(setToasts, `Restored to ${_sha.substring(0, 7)}`, 'success')
     await loadDocument()
-    window.dispatchEvent(new CustomEvent('document-saved', { detail: { id } }))
+    setHistoryTick((t) => t + 1)
   }
 
   const confirmDiscard = async () => {
@@ -283,11 +290,9 @@ export function DocumentEditPage() {
     try {
       setIsDiscarding(true)
       await api.discardDocument(id!)
-      setHasChanges(false)
-      clearUnsavedChanges(id!)
-      clearUncommittedChanges(id!)
       createToast(setToasts, 'Changes discarded', 'info')
       await loadDocument()
+      setHistoryTick((t) => t + 1)
     } catch (error) {
       console.error('Discard failed:', error)
       createToast(setToasts, 'Discard failed: ' + (error instanceof Error ? error.message : 'Unknown error'), 'error')
@@ -476,7 +481,13 @@ export function DocumentEditPage() {
         theme={theme}
         onToggleTheme={toggleTheme}
         showHistory={showHistory}
-        onToggleHistory={() => setShowHistory((v) => !v)}
+        onToggleHistory={() => {
+          setShowHistory((v) => {
+            const next = !v
+            if (next) setHistoryTick((t) => t + 1)
+            return next
+          })
+        }}
         historyEnabled={true}
       />
 
@@ -587,7 +598,7 @@ export function DocumentEditPage() {
             </div>
             <div className="history-panel-body">
               {usesGit ? (
-                <RevisionTree documentId={id} onRestore={handleRestore} />
+                <RevisionTree documentId={id} refreshToken={historyTick} onRestore={handleRestore} />
               ) : (
                 <p className="revision-empty">
                   История доступна только в папках с Git-версионированием.

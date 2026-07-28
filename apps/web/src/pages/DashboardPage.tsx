@@ -32,6 +32,8 @@ export default function DashboardPage() {
 
 type SidebarView = 'folders' | 'assets'
 
+type CreateMode = null | 'folder' | 'note' | 'diagram'
+
 function DashboardWithTabs() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -50,12 +52,9 @@ function DashboardWithTabs() {
     name: string
     mode: 'GIT' | 'SNAPSHOT'
   } | null>(null)
-  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [createMode, setCreateMode] = useState<CreateMode>(null)
   const [newFolderName, setNewFolderName] = useState('')
-  const [creatingDoc, setCreatingDoc] = useState(false)
-  const [creatingDiagram, setCreatingDiagram] = useState(false)
   const [newDocTitle, setNewDocTitle] = useState('')
-  const [createKind, setCreateKind] = useState<'MARKDOWN' | 'EXCALIDRAW'>('MARKDOWN')
 
   const {
     openPreview,
@@ -142,13 +141,17 @@ function DashboardWithTabs() {
     }
   }
 
+  function toggleCreateMode(mode: CreateMode) {
+    setCreateMode((prev) => (prev === mode ? null : mode))
+  }
+
   async function handleCreateFolder(e: React.FormEvent) {
     e.preventDefault()
     if (!newFolderName.trim()) return
     try {
       await api.createFolder(newFolderName.trim(), selectedFolderId)
       setNewFolderName('')
-      setCreatingFolder(false)
+      setCreateMode(null)
       await refreshTree()
     } catch {
       // ignore
@@ -160,12 +163,11 @@ function DashboardWithTabs() {
     if (!newDocTitle.trim()) return
     const folderId = selectedFolderId ?? findFirstFolder(tree)
     if (!folderId) return
+    const kind = createMode === 'diagram' ? 'EXCALIDRAW' : 'MARKDOWN'
     try {
-      const doc = await api.createDocument(folderId, newDocTitle.trim(), createKind)
+      const doc = await api.createDocument(folderId, newDocTitle.trim(), kind)
       setNewDocTitle('')
-      setCreatingDoc(false)
-      setCreatingDiagram(false)
-      setCreateKind('MARKDOWN')
+      setCreateMode(null)
       await refreshTree()
       pinTab({ id: doc.id, title: doc.title })
       navigate(`/documents/${doc.id}/edit`, { state: { pin: true } })
@@ -312,42 +314,25 @@ function DashboardWithTabs() {
               <>
                 <div className="tree-actions">
                   <button
-                    className="btn btn-sm btn-primary tree-action-btn"
-                    onClick={() => {
-                      if (creatingDoc && createKind === 'MARKDOWN') {
-                        setCreatingDoc(false)
-                      } else {
-                        setCreateKind('MARKDOWN')
-                        setCreatingDoc(true)
-                        setCreatingDiagram(false)
-                      }
-                    }}
+                    className={`btn btn-sm tree-action-btn${createMode === 'note' ? ' btn-primary' : ''}`}
+                    onClick={() => toggleCreateMode('note')}
                   >
                     + Note
                   </button>
                   <button
-                    className="btn btn-sm tree-action-btn"
-                    onClick={() => {
-                      if (creatingDiagram) {
-                        setCreatingDiagram(false)
-                        setCreatingDoc(false)
-                      } else {
-                        setCreateKind('EXCALIDRAW')
-                        setCreatingDiagram(true)
-                        setCreatingDoc(true)
-                      }
-                    }}
+                    className={`btn btn-sm tree-action-btn${createMode === 'diagram' ? ' btn-primary' : ''}`}
+                    onClick={() => toggleCreateMode('diagram')}
                   >
                     + Diagram
                   </button>
                   <button
-                    className="btn btn-sm tree-action-btn"
-                    onClick={() => setCreatingFolder((v) => !v)}
+                    className={`btn btn-sm tree-action-btn${createMode === 'folder' ? ' btn-primary' : ''}`}
+                    onClick={() => toggleCreateMode('folder')}
                   >
                     + Folder
                   </button>
                 </div>
-                {creatingFolder && (
+                {createMode === 'folder' && (
                   <form className="inline-form tree-inline-form" onSubmit={handleCreateFolder}>
                     <input
                       value={newFolderName}
@@ -358,12 +343,12 @@ function DashboardWithTabs() {
                     <button type="submit" className="btn btn-sm btn-primary">Add</button>
                   </form>
                 )}
-                {(creatingDoc || creatingDiagram) && (
+                {(createMode === 'note' || createMode === 'diagram') && (
                   <form className="inline-form tree-inline-form" onSubmit={handleCreateDoc}>
                     <input
                       value={newDocTitle}
                       onChange={(e) => setNewDocTitle(e.target.value)}
-                      placeholder={createKind === 'EXCALIDRAW' ? 'Diagram title' : 'Note title'}
+                      placeholder={createMode === 'diagram' ? 'Diagram title' : 'Note title'}
                       autoFocus
                     />
                     <button type="submit" className="btn btn-sm btn-primary">Add</button>
