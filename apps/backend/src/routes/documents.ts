@@ -3,6 +3,7 @@ import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { getDocumentService } from '../services/document.service.js'
 import { assertFolderPermission, getDocumentFolderId } from '../services/authz.js'
 import { getEffectivePermission } from '../services/folder.service.js'
+import { prisma } from '../prisma.js'
 import type { UserRole } from '@citadelmd/shared'
 
 export async function documentRoutes(app: FastifyInstance): Promise<void> {
@@ -558,14 +559,18 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/documents/:id/ws-permission', async (request, reply) => {
     const { id } = request.params as { id: string }
     try {
-      const folderId = await getDocumentFolderId(id)
-      if (!folderId) {
+      const document = await prisma.document.findUnique({
+        where: { id },
+        select: { filePath: true, folderId: true },
+      })
+      if (!document) {
         return reply.status(404).send({
           error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' },
         })
       }
+      const folderId = document.folderId
       if (request.user!.role === 'ADMIN') {
-        return { permission: 'EDIT' }
+        return { permission: 'EDIT', filePath: document.filePath }
       }
       const perm = await getEffectivePermission(request.user!.sub, folderId)
       if (perm === null) {
@@ -573,7 +578,10 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
           error: { code: 'FORBIDDEN', message: 'No access to this document' },
         })
       }
-      return { permission: perm === 'VIEW' ? 'VIEW' : 'EDIT' }
+      return {
+        permission: perm === 'VIEW' ? 'VIEW' : 'EDIT',
+        filePath: document.filePath,
+      }
     } catch (err: unknown) {
       const e = err as Error & { statusCode?: number }
       return reply.status(e.statusCode ?? 500).send({

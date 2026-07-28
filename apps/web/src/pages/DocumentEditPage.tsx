@@ -463,7 +463,13 @@ export function DocumentEditPage() {
           {usesGit && (
             <button
               className={showHistory ? 'btn btn-sm btn-primary' : ''}
-              onClick={() => setShowHistory(!showHistory)}
+              onClick={() => {
+                setShowHistory((v) => {
+                  const next = !v
+                  if (next) setHistoryTick((t) => t + 1)
+                  return next
+                })
+              }}
             >
               {showHistory ? 'Скрыть историю' : 'История'}
             </button>

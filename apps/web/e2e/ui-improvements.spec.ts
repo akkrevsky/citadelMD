@@ -48,6 +48,30 @@ test.describe('UI improvements — markdown', () => {
     await expect(page.locator('.changes-indicator')).not.toBeVisible({ timeout: 10000 })
   })
 
+  test('multiple Ctrl+S saves appear in revision history', async ({ page }) => {
+    const title = `E2E History ${Date.now()}`
+    await createNote(page, title)
+    const editor = await waitForMarkdownEditor(page)
+
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('# Version 1\n')
+    await saveWithKeyboard(page)
+
+    await editor.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('# Version 2\n')
+    await saveWithKeyboard(page)
+
+    await page.locator('.document-header').getByRole('button', { name: 'История' }).click()
+    await expect(page.locator('.history-panel')).toBeVisible({ timeout: 5000 })
+
+    const commits = page.locator('.revision-entry:not(.uncommitted)')
+    await expect(commits).toHaveCount(3, { timeout: 10000 })
+  })
+
   test('history diff shows only added/removed lines', async ({ page }) => {
     const title = `E2E Diff ${Date.now()}`
     await createNote(page, title)

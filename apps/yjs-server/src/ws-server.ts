@@ -35,6 +35,11 @@ export interface ConnectionInfo {
   permission?: 'READ' | 'WRITE'
 }
 
+interface WsAuthResult {
+  permission: NonNullable<ConnectionInfo['permission']>
+  filePath: string
+}
+
 export class YjsWebSocketServer {
   private wss: WebSocketServer
   private yjsManager: YjsManager
@@ -84,12 +89,13 @@ export class YjsWebSocketServer {
           ? this.validateShareToken(token)
           : this.validateSession(request.headers.cookie, effectiveDocId)
 
-        permissionPromise.then((permission) => {
-          if (!permission) {
+        permissionPromise.then((auth) => {
+          if (!auth) {
             ws.close(1008, 'Authentication required')
             return
           }
 
+          const { permission, filePath } = auth
           if (permission === 'READ' || permission === 'WRITE') {
             console.log(`[YjsWS] Connection with ${permission} permission for document ${effectiveDocId}`)
           }
@@ -105,7 +111,7 @@ export class YjsWebSocketServer {
           this.connections.set(connectionId, connectionInfo)
           
           // Initialize or get document session with atomic lock
-          this.initializeDocumentSession(effectiveDocId, connectionId)
+          this.initializeDocumentSession(effectiveDocId, connectionId, filePath)
             .then(() => {
               // Send initial document state with error handling
               const session = this.yjsManager.getDocument(effectiveDocId)
@@ -167,7 +173,7 @@ export class YjsWebSocketServer {
     })
   }
   
-  private async initializeDocumentSession(docId: string, connectionId: string): Promise<void> {
+  private async initializeDocumentSession(docId: string, connectionId: string, filePath: string): Promise<void> {
     // Check if there's already an initialization in progress
     const existingLock = this.documentInitLocks.get(docId)
     if (existingLock) {
@@ -177,7 +183,7 @@ export class YjsWebSocketServer {
     }
 
     // Create initialization promise to prevent race conditions
-    const initPromise = this.performDocumentInitialization(docId, connectionId)
+    const initPromise = this.performDocumentInitialization(docId, connectionId, filePath)
     this.documentInitLocks.set(docId, initPromise)
 
     try {
@@ -188,21 +194,13 @@ export class YjsWebSocketServer {
     }
   }
 
-  private async performDocumentInitialization(docId: string, connectionId: string): Promise<void> {
+  private async performDocumentInitialization(
+    docId: string,
+    connectionId: string,
+    filePath: string,
+  ): Promise<void> {
     let session = this.yjsManager.getDocument(docId)
     if (!session) {
-      // Generate more robust filePath from docId
-      let filePath: string
-      if (docId.startsWith('doc-')) {
-        // Extract UUID and create .md file
-        const uuid = docId.replace('doc-', '')
-        filePath = `${uuid}.md`
-      } else {
-        // Fallback: sanitize docId as filename
-        const sanitizedDocId = docId.replace(/[^a-zA-Z0-9_-]/g, '_')
-        filePath = `${sanitizedDocId}.md`
-      }
-      
       session = this.yjsManager.initDocument(docId, filePath)
     }
     
@@ -311,7 +309,7 @@ export class YjsWebSocketServer {
     }
   }
   
-  private async validateShareToken(token: string): Promise<ConnectionInfo['permission'] | undefined> {
+  private async validateShareToken(token: string): Promise<WsAuthResult | undefined> {
     try {
       const url = `${BACKEND_API_URL}/api/shares/${encodeURIComponent(token)}`
       const controller = new AbortController()
@@ -324,15 +322,22 @@ export class YjsWebSocketServer {
         return undefined
       }
       
-      const body = await response.json() as { share?: { permission?: string } }
+      const body = await response.json() as {
+        share?: { permission?: string; document?: { filePath?: string } }
+      }
       const permission = body?.share?.permission
+      const filePath = body?.share?.document?.filePath
       
       if (permission !== 'READ' && permission !== 'WRITE') {
         console.warn(`[YjsWS] Unknown permission from share token: ${permission}`)
         return undefined
       }
+      if (!filePath) {
+        console.warn('[YjsWS] Share token response missing document filePath')
+        return undefined
+      }
       
-      return permission as ConnectionInfo['permission']
+      return { permission: permission as WsAuthResult['permission'], filePath }
     } catch (error) {
       console.error(`[YjsWS] Error validating share token:`, error)
       return undefined
@@ -348,7 +353,7 @@ export class YjsWebSocketServer {
   private async validateSession(
     cookie: string | undefined,
     docId: string
-  ): Promise<ConnectionInfo['permission'] | null> {
+  ): Promise<WsAuthResult | null> {
     if (!cookie) return null
     // docId is 'doc-<uuid>'; the backend document id is the bare uuid
     const docUuid = docId.startsWith('doc-') ? docId.slice(4) : docId
@@ -359,9 +364,10 @@ export class YjsWebSocketServer {
       const response = await fetch(url, { headers: { cookie }, signal: controller.signal })
       clearTimeout(timeout)
       if (!response.ok) return null
-      const body = (await response.json()) as { permission?: string }
-      if (body.permission === 'EDIT') return 'WRITE'
-      if (body.permission === 'VIEW') return 'READ'
+      const body = (await response.json()) as { permission?: string; filePath?: string }
+      if (!body.filePath) return null
+      if (body.permission === 'EDIT') return { permission: 'WRITE', filePath: body.filePath }
+      if (body.permission === 'VIEW') return { permission: 'READ', filePath: body.filePath }
       return null
     } catch (error) {
       console.error('[YjsWS] Error validating session:', error)

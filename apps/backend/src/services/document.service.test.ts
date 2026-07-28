@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from
 import { Redis } from 'ioredis'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { DocumentService } from './document.service.js'
+import { DocumentService, toYjsDocId } from './document.service.js'
 import { prisma } from '../prisma.js'
 import { GitService } from '@citadelmd/shared'
 
@@ -13,6 +13,20 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret-that-is-at-least
 process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost'
 process.env.REDIS_PORT = process.env.REDIS_PORT || '6379'
 process.env.REDIS_DB = '15' // Use test Redis DB
+
+describe('toYjsDocId', () => {
+  it('prefixes bare document uuid', () => {
+    expect(toYjsDocId('550e8400-e29b-41d4-a716-446655440000')).toBe(
+      'doc-550e8400-e29b-41d4-a716-446655440000',
+    )
+  })
+
+  it('leaves already-prefixed ids unchanged', () => {
+    expect(toYjsDocId('doc-550e8400-e29b-41d4-a716-446655440000')).toBe(
+      'doc-550e8400-e29b-41d4-a716-446655440000',
+    )
+  })
+})
 
 describe('DocumentService', () => {
   let documentService: DocumentService

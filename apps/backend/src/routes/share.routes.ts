@@ -78,7 +78,7 @@ export async function shareRoutes(app: FastifyInstance): Promise<void> {
     const share = await prisma.share.findUnique({
       where: { token },
       include: {
-        document: { select: { id: true, title: true } },
+        document: { select: { id: true, title: true, filePath: true } },
       },
     })
 

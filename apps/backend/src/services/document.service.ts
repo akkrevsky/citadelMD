@@ -4,6 +4,11 @@ import { GitService, type GitAuthor, type GitRevision } from '@citadelmd/shared'
 import { prisma } from '../prisma.js'
 import { withFileLock } from './lock.js'
 
+/** Yjs WebSocket sessions use `doc-<uuid>`; DB document ids are bare UUIDs. */
+export function toYjsDocId(documentId: string): string {
+  return documentId.startsWith('doc-') ? documentId : `doc-${documentId}`
+}
+
 // ========== Types ==========
 
 export interface CreateDocumentInput {
@@ -368,8 +373,8 @@ export class DocumentService {
     await withFileLock(document.filePath, async () => {
       await this.git.restore(document.filePath, sha, author)
 
-      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
-        await this.reloadYjsDocument(id)
+      if (document.kind === 'MARKDOWN') {
+        await this.tryReloadYjsDocument(id)
       }
     })
 
@@ -610,8 +615,8 @@ export class DocumentService {
     }
 
     await withFileLock(document.filePath, async () => {
-      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
-        await this.flushYjsDocument(id)
+      if (document.kind === 'MARKDOWN') {
+        await this.tryFlushYjsDocument(id)
       }
 
       if (document.folder.mode === 'SNAPSHOT') {
@@ -658,8 +663,8 @@ export class DocumentService {
     await withFileLock(document.filePath, async () => {
       await this.git.discard(document.filePath)
 
-      if (document.kind === 'MARKDOWN' && (await this.hasActiveYjsSession(id))) {
-        await this.reloadYjsDocument(id)
+      if (document.kind === 'MARKDOWN') {
+        await this.tryReloadYjsDocument(id)
       }
     })
   }
@@ -669,7 +674,8 @@ export class DocumentService {
    */
   async hasActiveYjsSession(docId: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.yjsServerUrl}/internal/yjs-session-active?docid=${encodeURIComponent(docId)}`)
+      const yjsDocId = toYjsDocId(docId)
+      const response = await fetch(`${this.yjsServerUrl}/internal/yjs-session-active?docid=${encodeURIComponent(yjsDocId)}`)
       if (!response.ok) {
         return false
       }
@@ -681,11 +687,28 @@ export class DocumentService {
     }
   }
 
+  private async tryFlushYjsDocument(documentId: string): Promise<void> {
+    try {
+      await this.flushYjsDocument(documentId)
+    } catch {
+      // Y.Doc not loaded in yjs-server (editor closed) — commit working tree as-is
+    }
+  }
+
+  private async tryReloadYjsDocument(documentId: string): Promise<void> {
+    try {
+      await this.reloadYjsDocument(documentId)
+    } catch {
+      // No live Yjs session to reload
+    }
+  }
+
   /**
    * Flush Yjs document to file
    */
   private async flushYjsDocument(docId: string): Promise<void> {
-    const response = await fetch(`${this.yjsServerUrl}/internal/flush?docid=${encodeURIComponent(docId)}`, {
+    const yjsDocId = toYjsDocId(docId)
+    const response = await fetch(`${this.yjsServerUrl}/internal/flush?docid=${encodeURIComponent(yjsDocId)}`, {
       method: 'POST'
     })
     if (!response.ok) {
@@ -698,7 +721,8 @@ export class DocumentService {
    * Reload Yjs document from file
    */
   private async reloadYjsDocument(docId: string): Promise<void> {
-    const response = await fetch(`${this.yjsServerUrl}/internal/reload?docid=${encodeURIComponent(docId)}`, {
+    const yjsDocId = toYjsDocId(docId)
+    const response = await fetch(`${this.yjsServerUrl}/internal/reload?docid=${encodeURIComponent(yjsDocId)}`, {
       method: 'POST'
     })
     if (!response.ok) {
