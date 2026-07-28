@@ -164,13 +164,13 @@ For quick feature testing alongside the full Docker stack, use the debug profile
 
 ```bash
 make -C infra debug-setup    # first time: infra + migrate + seed
-make -C infra debug-dev      # infra (if needed) + hot-reload apps
-# alias: make -C infra debug
+make -C infra debug          # stop old apps, start infra + hot-reload
+make -C infra debug-stop     # stop apps only (infra keeps running)
 
 # Open http://localhost:5174  (admin / admin123)
 ```
 
-Config lives in [infra/.env_debug](infra/.env_debug). Stop apps with Ctrl+C; stop infra with `make -C infra debug-down`.
+Config lives in [infra/.env_debug](infra/.env_debug). Stop apps with Ctrl+C or `make -C infra debug-stop`; stop infra with `make -C infra debug-down`.
 
 ### Common commands
 

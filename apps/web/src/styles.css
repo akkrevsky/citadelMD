@@ -644,6 +644,38 @@ select:focus {
   background: var(--color-bg);
 }
 
+.tab-context-menu-separator {
+  height: 1px;
+  background: var(--color-border);
+  margin: 0.25rem 0;
+}
+
+.tab-context-menu-danger {
+  color: var(--color-danger);
+}
+
+.move-document-dialog {
+  max-width: 420px;
+}
+
+.move-document-title {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
+.move-document-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.move-document-label select {
+  width: 100%;
+}
+
 .unsaved-star {
   color: var(--color-warning);
   margin-right: 0.15rem;

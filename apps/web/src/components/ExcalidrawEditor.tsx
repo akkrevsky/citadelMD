@@ -22,7 +22,16 @@ function ExcalidrawEditor({ initialData, onChange, theme = 'light' }: Excalidraw
   const [loadError, setLoadError] = useState('')
   const apiRef = useRef<any>(null)
   const onChangeRef = useRef(onChange)
+  const readyRef = useRef(false)
   onChangeRef.current = onChange
+
+  useEffect(() => {
+    readyRef.current = false
+    const id = window.requestAnimationFrame(() => {
+      readyRef.current = true
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [initialData])
 
   useEffect(() => {
     let cancelled = false
@@ -43,6 +52,7 @@ function ExcalidrawEditor({ initialData, onChange, theme = 'light' }: Excalidraw
   }, [])
 
   const handleChange = useCallback((elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => {
+    if (!readyRef.current) return
     onChangeRef.current?.({
       type: 'excalidraw',
       version: 2,

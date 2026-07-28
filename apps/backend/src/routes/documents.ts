@@ -188,6 +188,40 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
     }
   })
 
+  // POST /api/documents/:id/move - Move document to another folder
+  app.post('/api/documents/:id/move', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { folderId } = request.body as { folderId?: string }
+
+    if (!folderId || typeof folderId !== 'string') {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'folderId is required' },
+      })
+    }
+
+    try {
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
+      const sourceFolderId = await getDocumentFolderId(id)
+      if (!sourceFolderId) {
+        return reply.status(404).send({
+          error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' },
+        })
+      }
+      await assertFolderPermission(request.user!.sub, request.user!.role, sourceFolderId, 'EDIT')
+      const document = await documentService.moveDocument(id, folderId, request.user!.sub)
+      return reply.status(200).send(document)
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      const status = e.statusCode ?? 500
+      let code = 'DOCUMENT_MOVE_ERROR'
+      if (status === 404) code = 'DOCUMENT_NOT_FOUND'
+      else if (status === 409) code = 'DOCUMENT_EXISTS'
+      return reply.status(status).send({
+        error: { code, message: e.message },
+      })
+    }
+  })
+
   // ========== Search ==========
 
   // GET /api/documents/search?q=<query>&folderId=<optional> — full-text search via git grep

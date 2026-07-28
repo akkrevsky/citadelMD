@@ -458,6 +458,96 @@ export class DocumentService {
   }
 
   /**
+   * Move document to another folder (git mv + DB update)
+   */
+  async moveDocument(id: string, targetFolderId: string, userId: string): Promise<DocumentMetadata> {
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: { folder: { select: { gitPath: true, mode: true } } },
+    })
+
+    if (!document) {
+      throw Object.assign(new Error('Document not found'), { statusCode: 404 })
+    }
+
+    if (document.folderId === targetFolderId) {
+      return {
+        ...document,
+        hasUncommittedChanges: false,
+        folderMode: document.folder.mode,
+      }
+    }
+
+    const targetFolder = await prisma.folder.findUnique({
+      where: { id: targetFolderId },
+      select: { gitPath: true, mode: true },
+    })
+
+    if (!targetFolder) {
+      throw Object.assign(new Error('Folder not found'), { statusCode: 404 })
+    }
+
+    const existing = await prisma.document.findFirst({
+      where: {
+        folderId: targetFolderId,
+        title: document.title,
+        id: { not: id },
+      },
+    })
+
+    if (existing) {
+      throw Object.assign(new Error('Document with this title already exists in the folder'), {
+        statusCode: 409,
+      })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { login: true, gitName: true, gitEmail: true },
+    })
+
+    if (!user) {
+      throw Object.assign(new Error('User not found'), { statusCode: 404 })
+    }
+
+    const author: GitAuthor = {
+      name: user.gitName ?? user.login,
+      email: user.gitEmail ?? `${user.login}@mdcollab.local`,
+    }
+
+    const fileName = path.basename(document.filePath)
+    const newFilePath = targetFolder.gitPath ? `${targetFolder.gitPath}/${fileName}` : fileName
+
+    return withFileLock(document.filePath, async () => {
+      await this.git.move(document.filePath, newFilePath)
+
+      const result = await this.git.commit(
+        `Move document ${document.title} [user:${user.login}]`,
+        author,
+        [],
+      )
+
+      if (!result) {
+        throw new Error('Failed to commit document move')
+      }
+
+      const updated = await prisma.document.update({
+        where: { id },
+        data: {
+          folderId: targetFolderId,
+          filePath: newFilePath,
+        },
+      })
+
+      return {
+        ...updated,
+        hasUncommittedChanges: false,
+        folderMode: targetFolder.mode,
+      }
+    })
+  }
+
+  /**
    * Delete document with Git removal and commit
    */
   async deleteDocument(id: string, userId: string): Promise<void> {
@@ -739,12 +829,19 @@ export class DocumentService {
    * Sanitize filename for file system
    */
   private sanitizeFileName(title: string): string {
-    return title
+    let name = title
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
+      .normalize('NFC')
+      .replace(/[^\p{L}\p{N}\s-]/gu, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
+
+    if (!name) {
+      name = 'untitled'
+    }
+
+    return name
   }
 }
 

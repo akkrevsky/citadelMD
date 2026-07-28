@@ -278,6 +278,19 @@ class ApiClient {
     })
   }
 
+  deleteDocument(id: string) {
+    return this.request<void>(`/documents/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  moveDocument(id: string, folderId: string) {
+    return this.request<Document>(`/documents/${id}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ folderId }),
+    })
+  }
+
   // Create document in folder
   createDocument(folderId: string, title: string, kind: 'MARKDOWN' | 'EXCALIDRAW' = 'MARKDOWN') {
     return this.request<Document>(`/folders/${folderId}/documents`, {

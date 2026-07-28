@@ -14,6 +14,8 @@ import {
   clearUncommittedChanges,
 } from '../utils/unsaved.js'
 import { truncate, formatUpdatedAt } from '../utils/string.js'
+import { isModShortcut } from '../utils/keyboard.js'
+import { normalizeScene, serializeSceneForSave } from '../utils/excalidrawScene.js'
 import type { ExcalidrawSceneData } from '../components/ExcalidrawEditor.js'
 
 const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
@@ -40,16 +42,32 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   const [showHistory, setShowHistory] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [toasts, setToasts] = useState<ToastData[]>([])
+  const [historyTick, setHistoryTick] = useState(0)
   const sceneRef = useRef<ExcalidrawSceneData | null>(null)
+  const baselineRef = useRef('')
   const loadedKey = useRef(0)
 
   const usesGit = doc.folderMode !== 'SNAPSHOT'
+
+  function applyDirtyState(dirty: boolean) {
+    setHasChanges(dirty)
+    if (dirty) {
+      setUnsavedChanges(documentId)
+      setUncommittedChanges(documentId)
+    } else {
+      clearUnsavedChanges(documentId)
+      clearUncommittedChanges(documentId)
+    }
+  }
 
   const loadScene = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const raw = await api.exportDocument(documentId)
+      const [raw, docMeta] = await Promise.all([
+        api.exportDocument(documentId),
+        api.getDocument(documentId),
+      ])
       let parsed: ExcalidrawSceneData
       try {
         parsed = JSON.parse(raw) as ExcalidrawSceneData
@@ -64,10 +82,14 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
         }
       }
       sceneRef.current = parsed
+      baselineRef.current = normalizeScene(parsed)
       setScene(parsed)
       loadedKey.current += 1
-      setHasChanges(false)
-      clearUnsavedChanges(documentId)
+      if (docMeta) {
+        setDoc(docMeta)
+      }
+      const dirty = docMeta?.hasUncommittedChanges ?? false
+      applyDirtyState(dirty)
     } catch (err) {
       console.error('Failed to load diagram:', err)
       setError('Failed to load diagram')
@@ -77,31 +99,37 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   }, [documentId])
 
   useEffect(() => {
-    setDoc(initialDoc)
     setEditedTitle(initialDoc.title)
     updateTabTitle(documentId, initialDoc.title)
-    loadScene()
-  }, [documentId, initialDoc, loadScene, updateTabTitle])
+    void loadScene()
+  }, [documentId, initialDoc.title, loadScene, updateTabTitle])
+
+  useEffect(() => {
+    setDoc(initialDoc)
+  }, [initialDoc])
 
   const handleSceneChange = useCallback(
     (next: ExcalidrawSceneData) => {
       sceneRef.current = next
-      setHasChanges(true)
-      setUnsavedChanges(documentId)
-      setUncommittedChanges(documentId)
+      const changed = normalizeScene(next) !== baselineRef.current
+      applyDirtyState(changed)
     },
     [documentId],
   )
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!sceneRef.current) return
     try {
       setIsSaving(true)
-      const content = JSON.stringify(sceneRef.current, null, 2)
-      await api.putDocumentContent(documentId, content)
-      setHasChanges(false)
-      clearUnsavedChanges(documentId)
-      setUncommittedChanges(documentId)
+      const content = serializeSceneForSave(sceneRef.current)
+      if (usesGit) {
+        await api.putDocumentContent(documentId, content, true, 'Auto-save')
+      } else {
+        await api.putDocumentContent(documentId, content)
+      }
+      baselineRef.current = normalizeScene(sceneRef.current)
+      applyDirtyState(false)
+      setHistoryTick((t) => t + 1)
       const refreshed = await api.getDocument(documentId)
       setDoc(refreshed)
       window.dispatchEvent(new CustomEvent('document-saved', { detail: { id: documentId } }))
@@ -112,7 +140,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [documentId, usesGit])
 
   const handleCommit = async () => {
     if (!commitMessage.trim()) {
@@ -122,13 +150,15 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
     try {
       setIsCommitting(true)
       if (hasChanges && sceneRef.current) {
-        await api.putDocumentContent(documentId, JSON.stringify(sceneRef.current, null, 2))
+        await api.putDocumentContent(documentId, serializeSceneForSave(sceneRef.current))
       }
       await api.commitDocument(documentId, commitMessage.trim())
       setCommitMessage('')
-      setHasChanges(false)
-      clearUnsavedChanges(documentId)
-      clearUncommittedChanges(documentId)
+      if (sceneRef.current) {
+        baselineRef.current = normalizeScene(sceneRef.current)
+      }
+      applyDirtyState(false)
+      setHistoryTick((t) => t + 1)
       const refreshed = await api.getDocument(documentId)
       setDoc(refreshed)
       window.dispatchEvent(new CustomEvent('document-saved', { detail: { id: documentId } }))
@@ -150,9 +180,8 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
     try {
       setIsDiscarding(true)
       await api.discardDocument(documentId)
-      setHasChanges(false)
-      clearUnsavedChanges(documentId)
-      clearUncommittedChanges(documentId)
+      applyDirtyState(false)
+      setHistoryTick((t) => t + 1)
       createToast(setToasts, 'Changes discarded', 'info')
       await loadScene()
       const refreshed = await api.getDocument(documentId)
@@ -172,6 +201,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   const handleRestore = async (_sha: string) => {
     createToast(setToasts, `Restored to ${_sha.substring(0, 7)}`, 'success')
     await loadScene()
+    setHistoryTick((t) => t + 1)
     const refreshed = await api.getDocument(documentId)
     setDoc(refreshed)
     window.dispatchEvent(new CustomEvent('document-saved', { detail: { id: documentId } }))
@@ -191,15 +221,14 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const mod = e.ctrlKey || e.metaKey
-      if (mod && e.key === 's') {
+      if (isModShortcut(e, 'KeyS')) {
         e.preventDefault()
         if (hasChanges) void handleSave()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  })
+  }, [hasChanges, handleSave])
 
   const folderPath =
     doc.filePath.includes('/') ? doc.filePath.slice(0, doc.filePath.lastIndexOf('/')) : ''
@@ -255,7 +284,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
               {hasChanges && <span className="changes-indicator">Unsaved changes</span>}
 
               <button
-                onClick={handleSave}
+                onClick={() => void handleSave()}
                 disabled={!hasChanges || isSaving || isCommitting}
                 className="btn btn-sm btn-primary"
               >
@@ -335,7 +364,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
               </button>
             </div>
             <div className="history-panel-body">
-              <RevisionTree documentId={documentId} onRestore={handleRestore} />
+              <RevisionTree documentId={documentId} refreshToken={historyTick} onRestore={handleRestore} />
             </div>
           </aside>
         )}
@@ -354,7 +383,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
       <StatusBar
         fileName={`${doc.title}.excalidraw`}
         showConnection={false}
-        modeLabel="Diagram · Save to disk"
+        modeLabel="Diagram"
         hasUncommittedChanges={hasChanges}
       />
 

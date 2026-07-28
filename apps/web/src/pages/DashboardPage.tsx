@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
 import { formatUpdatedAt } from '../utils/string'
@@ -11,6 +11,8 @@ import { TabsProvider, useTabs } from '../contexts/TabsContext'
 import { FolderSettingsDialog } from '../components/FolderSettingsDialog'
 import { AssetsPanel } from '../components/AssetsPanel'
 import { TabContextMenu } from '../components/TabContextMenu'
+import { MoveDocumentDialog } from '../components/MoveDocumentDialog'
+import { ConfirmModal } from '../components/ConfirmModal'
 import { findFirstDocument, collectDocumentIds, findFirstFolder } from '../utils/tree'
 import logo from '../assets/logo.png'
 
@@ -67,6 +69,8 @@ function DashboardWithTabs() {
     closeLeft,
     closeRight,
     setActive,
+    updateTabTitle,
+    reorderTabs,
   } = useTabs()
 
   const activeDocId =
@@ -142,7 +146,13 @@ function DashboardWithTabs() {
   }
 
   function toggleCreateMode(mode: CreateMode) {
-    setCreateMode((prev) => (prev === mode ? null : mode))
+    setCreateMode((prev) => {
+      const next = prev === mode ? null : mode
+      if (next === 'diagram' && !newDocTitle.trim()) {
+        setNewDocTitle('Diagram')
+      }
+      return next
+    })
   }
 
   async function handleCreateFolder(e: React.FormEvent) {
@@ -237,7 +247,7 @@ function DashboardWithTabs() {
           >
             <span className="document-name">
               {unsaved && <span className="doc-state-marker">*</span>}
-              {item.kind === 'EXCALIDRAW' && <span className="doc-kind-icon" title="Diagram">◈ </span>}
+              {item.kind === 'EXCALIDRAW' && <span className="doc-kind-icon" title="Diagram">D </span>}
               {item.name}
             </span>
             {item.updatedAt && (
@@ -383,11 +393,15 @@ function DashboardWithTabs() {
           pinnedTabs={pinnedTabs}
           previewTab={previewTab}
           activeTabId={activeDocId}
+          tree={tree}
           onSelect={(id) => navigate(`/documents/${id}/edit`, { state: { pin: true } })}
           onClose={(id) => closeTab(id)}
           onCloseOthers={closeOthers}
           onCloseLeft={closeLeft}
           onCloseRight={closeRight}
+          onReorder={reorderTabs}
+          onRename={(id, title) => updateTabTitle(id, title)}
+          onRefreshTree={refreshTree}
         />
         <Outlet context={{ selectedFolderId, setSelectedFolderId, refreshTree } satisfies DashboardContext} />
       </main>
@@ -413,23 +427,36 @@ function TabBarMain({
   pinnedTabs,
   previewTab,
   activeTabId,
+  tree,
   onSelect,
   onClose,
   onCloseOthers,
   onCloseLeft,
   onCloseRight,
+  onReorder,
+  onRename,
+  onRefreshTree,
 }: {
   pinnedTabs: { id: string; title: string }[]
   previewTab: { id: string; title: string } | null
   activeTabId: string | null
+  tree: TreeItem[]
   onSelect: (id: string) => void
   onClose: (id: string) => void
   onCloseOthers: (id: string) => void
   onCloseLeft: (id: string) => void
   onCloseRight: (id: string) => void
+  onReorder: (fromIndex: number, toIndex: number) => void
+  onRename: (id: string, title: string) => void
+  onRefreshTree: () => void
 }) {
+  const navigate = useNavigate()
   const [docStateTick, setDocStateTick] = useState(0)
-  const [menu, setMenu] = useState<{ x: number; y: number; tabId: string } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; tabId: string; title: string } | null>(null)
+  const [moveTab, setMoveTab] = useState<{ id: string; title: string } | null>(null)
+  const [deleteTab, setDeleteTab] = useState<{ id: string; title: string } | null>(null)
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   useEffect(() => onDocumentStateChange(() => setDocStateTick((n) => n + 1)), [])
   void docStateTick
@@ -437,52 +464,142 @@ function TabBarMain({
   const displayTabs = pinnedTabs
   const showPreviewActive = previewTab && activeTabId === previewTab.id && !pinnedTabs.some((t) => t.id === previewTab.id)
 
+  async function handleRenameTab(tabId: string, currentTitle: string) {
+    const next = window.prompt('Rename document', currentTitle)
+    if (!next || !next.trim() || next.trim() === currentTitle) return
+    try {
+      await api.updateDocument(tabId, { title: next.trim() })
+      onRename(tabId, next.trim())
+      onRefreshTree()
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleDeleteTab(tabId: string) {
+    try {
+      await api.deleteDocument(tabId)
+      onClose(tabId)
+      onRefreshTree()
+      if (activeTabId === tabId) {
+        navigate('/')
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleMoveTab(tabId: string, folderId: string) {
+    try {
+      await api.moveDocument(tabId, folderId)
+      onRefreshTree()
+      setMoveTab(null)
+    } catch {
+      // ignore
+    }
+  }
+
   if (displayTabs.length === 0 && !showPreviewActive) return null
 
   return (
-    <div className="tab-bar">
-      {displayTabs.map((tab) => {
-        const isActive = tab.id === activeTabId
-        const unsaved = hasUnsavedChanges(tab.id)
-        return (
-          <div
-            key={tab.id}
-            className={`tab-item${isActive ? ' active' : ''}`}
-            onClick={() => onSelect(tab.id)}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              setMenu({ x: e.clientX, y: e.clientY, tabId: tab.id })
-            }}
-          >
-            <span className="tab-label">
-              {unsaved && <span className="unsaved-star">*</span>}
-              {tab.title || tab.id.slice(0, 8)}
-            </span>
-            <button
-              className="tab-close"
-              onClick={(e) => {
-                e.stopPropagation()
-                onClose(tab.id)
+    <>
+      <div className="tab-bar">
+        {displayTabs.map((tab, index) => {
+          const isActive = tab.id === activeTabId
+          const unsaved = hasUnsavedChanges(tab.id)
+          const isDragOver = dragOverIndex === index && dragIndexRef.current !== index
+          return (
+            <div
+              key={tab.id}
+              className={`tab-item${isActive ? ' active' : ''}${isDragOver ? ' tab-drag-over' : ''}`}
+              draggable
+              onClick={() => onSelect(tab.id)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setMenu({ x: e.clientX, y: e.clientY, tabId: tab.id, title: tab.title })
               }}
-              title="Close"
+              onDragStart={(e) => {
+                dragIndexRef.current = index
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('text/plain', tab.id)
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDragOverIndex(index)
+              }}
+              onDragLeave={() => {
+                if (dragOverIndex === index) setDragOverIndex(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                const from = dragIndexRef.current
+                if (from !== null && from !== index) {
+                  onReorder(from, index)
+                }
+                dragIndexRef.current = null
+                setDragOverIndex(null)
+              }}
+              onDragEnd={() => {
+                dragIndexRef.current = null
+                setDragOverIndex(null)
+              }}
             >
-              <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
-                <path d="M4.72 4.72a.75.75 0 011.06 0L8 6.94l2.22-2.22a.75.75 0 111.06 1.06L9.06 8l2.22 2.22a.75.75 0 11-1.06 1.06L8 9.06l-2.22 2.22a.75.75 0 01-1.06-1.06L6.94 8 4.72 5.78a.75.75 0 010-1.06z"/>
-              </svg>
-            </button>
-          </div>
-        )
-      })}
-      {menu && (
-        <TabContextMenu
-          x={menu.x}
-          y={menu.y}
-          onClose={() => setMenu(null)}
-          onCloseOthers={() => onCloseOthers(menu.tabId)}
-          onCloseLeft={() => onCloseLeft(menu.tabId)}
-          onCloseRight={() => onCloseRight(menu.tabId)}
+              <span className="tab-label">
+                {unsaved && <span className="unsaved-star">*</span>}
+                {tab.title || tab.id.slice(0, 8)}
+              </span>
+              <button
+                className="tab-close"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onClose(tab.id)
+                }}
+                title="Close"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+                  <path d="M4.72 4.72a.75.75 0 011.06 0L8 6.94l2.22-2.22a.75.75 0 111.06 1.06L9.06 8l2.22 2.22a.75.75 0 11-1.06 1.06L8 9.06l-2.22 2.22a.75.75 0 01-1.06-1.06L6.94 8 4.72 5.78a.75.75 0 010-1.06z"/>
+                </svg>
+              </button>
+            </div>
+          )
+        })}
+        {menu && (
+          <TabContextMenu
+            x={menu.x}
+            y={menu.y}
+            onClose={() => setMenu(null)}
+            onRename={() => void handleRenameTab(menu.tabId, menu.title)}
+            onDelete={() => setDeleteTab({ id: menu.tabId, title: menu.title })}
+            onMove={() => setMoveTab({ id: menu.tabId, title: menu.title })}
+            onCloseOthers={() => onCloseOthers(menu.tabId)}
+            onCloseLeft={() => onCloseLeft(menu.tabId)}
+            onCloseRight={() => onCloseRight(menu.tabId)}
+          />
+        )}
+      </div>
+
+      {moveTab && (
+        <MoveDocumentDialog
+          documentTitle={moveTab.title}
+          tree={tree}
+          onClose={() => setMoveTab(null)}
+          onMove={(folderId) => void handleMoveTab(moveTab.id, folderId)}
         />
       )}
-    </div>
+
+      {deleteTab && (
+        <ConfirmModal
+          title="Delete document"
+          message={`Delete "${deleteTab.title}" permanently?`}
+          confirmLabel="Delete"
+          onConfirm={() => {
+            void handleDeleteTab(deleteTab.id)
+            setDeleteTab(null)
+          }}
+          onCancel={() => setDeleteTab(null)}
+        />
+      )}
+    </>
   )
 }

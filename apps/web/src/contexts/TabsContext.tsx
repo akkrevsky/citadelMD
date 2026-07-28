@@ -25,6 +25,8 @@ interface TabsContextType {
   setActive: (id: string) => void
   /** Update tab title without changing pin/preview state. */
   updateTabTitle: (id: string, title: string) => void
+  /** Reorder pinned tabs by drag-and-drop. */
+  reorderTabs: (fromIndex: number, toIndex: number) => void
   /** Tabs in display order: pinned tabs followed by the preview tab (if any). */
   allTabs: Tab[]
 }
@@ -144,11 +146,23 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     setPreviewTab((prev) => (prev?.id === id ? { ...prev, title } : prev))
   }, [])
 
+  const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
+    setPinnedTabs((pinned) => {
+      if (fromIndex < 0 || fromIndex >= pinned.length) return pinned
+      if (toIndex < 0 || toIndex >= pinned.length) return pinned
+      const next = [...pinned]
+      const [item] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, item)
+      return next
+    })
+  }, [])
+
   const allTabs = previewTab ? [...pinnedTabs, previewTab] : pinnedTabs
 
   return (
     <TabsContext.Provider
-      value={{ pinnedTabs, previewTab, activeTabId, openPreview, pinTab, closeTab, closeOthers, closeLeft, closeRight, setActive, updateTabTitle, allTabs }}
+      value={{ pinnedTabs, previewTab, activeTabId, openPreview, pinTab, closeTab, closeOthers, closeLeft, closeRight, setActive, updateTabTitle, reorderTabs, allTabs }}
     >
       {children}
     </TabsContext.Provider>

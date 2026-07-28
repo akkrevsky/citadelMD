@@ -16,6 +16,7 @@ import { api, type Document } from '../api-client.js'
 import { useTabs } from '../contexts/TabsContext.js'
 import { setUnsavedChanges, clearUnsavedChanges, setUncommittedChanges, clearUncommittedChanges } from '../utils/unsaved.js'
 import { truncate, formatUpdatedAt } from '../utils/string.js'
+import { isModShortcut } from '../utils/keyboard.js'
 import '../styles/editor.css'
 import '../styles/preview.css'
 import '../styles/toolbar.css'
@@ -346,13 +347,13 @@ export function DocumentEditPage() {
       const mod = e.ctrlKey || e.metaKey
       if (!mod) return
 
-      if (e.key === 's') {
+      if (isModShortcut(e, 'KeyS')) {
         e.preventDefault()
         if (hasChanges) handleSave()
-      } else if (e.key === 'h') {
+      } else if (isModShortcut(e, 'KeyH')) {
         e.preventDefault()
         window.document.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'find' } }))
-      } else if (e.key === 'e') {
+      } else if (isModShortcut(e, 'KeyE')) {
         e.preventDefault()
         const cycle: ViewMode[] = ['source', 'split', 'preview']
         const idx = cycle.indexOf(viewMode)

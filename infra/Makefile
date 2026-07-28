@@ -1,8 +1,9 @@
 .PHONY: install dev up build rebuild down logs ps migrate seed backup \
-	debug-up debug-down debug-ps debug-logs debug-migrate debug-seed debug-setup \
+	debug-up debug-down debug-stop debug-ps debug-logs debug-migrate debug-seed debug-setup \
 	debug-dev debug
 
 DEBUG_COMPOSE = docker compose --env-file .env_debug -f docker-compose.debug.yml
+DEBUG_PORTS = 5174 3001 1236 1237 3101
 
 install:
 	cd .. && pnpm install && pnpm -r build
@@ -47,8 +48,28 @@ debug-up:
 	@echo "Debug infra ready (postgres :5433, redis :6380, minio :9002)."
 	@echo "Run: make debug-dev  ->  http://localhost:5174"
 
+# Stop local debug app processes (keeps Docker infra running).
+debug-stop:
+	@echo "Stopping debug app processes on ports $(DEBUG_PORTS)..."
+	@for port in $(DEBUG_PORTS); do \
+	  if command -v fuser >/dev/null 2>&1; then \
+	    fuser -k $$port/tcp >/dev/null 2>&1 || true; \
+	  else \
+	    pid=$$(lsof -ti tcp:$$port 2>/dev/null || true); \
+	    if [ -n "$$pid" ]; then kill $$pid 2>/dev/null || true; fi; \
+	  fi; \
+	done
+	@sleep 1
+	@busy=$$(ss -tln 2>/dev/null | grep -E ':5174|:3001|:1236|:1237|:3101' || true); \
+	if [ -n "$$busy" ]; then \
+	  echo "Warning: some debug ports are still in use:"; \
+	  echo "$$busy"; \
+	  exit 1; \
+	fi
+	@echo "Debug app ports are free."
+
 # Infra (if needed) + hot-reload apps on debug ports (foreground).
-debug-dev: debug-up
+debug-dev: debug-stop debug-up
 	@echo "Starting apps (web :5174, backend :3001, yjs :1236/:1237, mcp :3101)..."
 	cd .. && pnpm dev:debug
 

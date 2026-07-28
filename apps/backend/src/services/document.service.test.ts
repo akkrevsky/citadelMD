@@ -197,6 +197,18 @@ describe('DocumentService', () => {
       expect(result.filePath).toBe('test-folder/test-document-special-chars.md')
     })
 
+    it('should preserve cyrillic letters in filename', async () => {
+      const result = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Диаграмма',
+        createdById: testUserId,
+        kind: 'EXCALIDRAW',
+      })
+
+      expect(result.filePath).toBe('test-folder/диаграмма.excalidraw')
+      expect(result.title).toBe('Диаграмма')
+    })
+
     it('should throw error if folder not found', async () => {
       const input = {
         folderId: 'non-existent-folder',

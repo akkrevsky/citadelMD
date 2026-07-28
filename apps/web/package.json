@@ -8,7 +8,9 @@
     "dev:debug": "vite --config vite.debug.config.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e:ui": "playwright test --config=e2e/playwright.debug.config.ts e2e/ui-improvements.spec.ts",
+    "e2e:ui:debug": "playwright test --config=e2e/playwright.debug.config.ts e2e/debug-ui-improvements.spec.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.0",

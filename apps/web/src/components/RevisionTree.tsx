@@ -32,21 +32,28 @@ function countDiffLines(diff: string): { added: number; removed: number } {
   return { added, removed }
 }
 
+function diffChangeLines(diff: string): string[] {
+  return diff.split('\n').filter((line) => {
+    if (line.startsWith('+') && !line.startsWith('+++')) return true
+    if (line.startsWith('-') && !line.startsWith('---')) return true
+    return false
+  })
+}
+
 function DiffView({ diff }: { diff: string }) {
+  const lines = diffChangeLines(diff)
+  if (lines.length === 0) {
+    return <p className="revision-empty">Нет изменений строк</p>
+  }
+
   return (
     <pre className="revision-diff">
-      {diff.split('\n').map((line, i) => (
+      {lines.map((line, i) => (
         <div
           key={i}
-          className={
-            line.startsWith('+') && !line.startsWith('+++')
-              ? 'diff-line-added'
-              : line.startsWith('-') && !line.startsWith('---')
-                ? 'diff-line-removed'
-                : 'diff-line-context'
-          }
+          className={line.startsWith('+') ? 'diff-line-added' : 'diff-line-removed'}
         >
-          {line || '\n'}
+          {line}
         </div>
       ))}
     </pre>
