@@ -42,17 +42,7 @@ describe('DocumentService', () => {
     
     // Setup test environment
     testRepoPath = process.env.GIT_REPO_PATH!
-    
-    // Clean and create test repo
-    await fs.rm(testRepoPath, { recursive: true, force: true })
-    await fs.mkdir(testRepoPath, { recursive: true })
-    
-    // Initialize Git repo
-    const git = new GitService(testRepoPath)
-    await git.init()
-    await git.addConfig('user.name', 'Test User')
-    await git.addConfig('user.email', 'test@example.com')
-    
+
     // Setup Redis for tests (DB 15)
     testRedis = new Redis({
       host: process.env.REDIS_HOST || 'localhost',
@@ -67,8 +57,8 @@ describe('DocumentService', () => {
     }
 
     // Create test user and folder
-    testUserId = 'test-user-id'
-    testFolderId = 'test-folder-id'
+    testUserId = '00000000-0000-4000-8000-000000000001'
+    testFolderId = '00000000-0000-4000-8000-000000000002'
     
     try {
       await prisma.user.upsert({
@@ -96,15 +86,6 @@ describe('DocumentService', () => {
     } catch (error) {
       console.warn('Could not set up test data in database, some tests may fail:', (error as Error).message)
     }
-
-    // Create test folder in Git repo
-    const folderPath = path.join(testRepoPath, 'test-folder')
-    await fs.mkdir(folderPath, { recursive: true })
-    await fs.writeFile(path.join(folderPath, '.gitkeep'), '')
-    await git.commit('Initial test setup', {
-      name: 'Test User',
-      email: 'test@example.com'
-    })
   })
 
   afterAll(async () => {
@@ -134,7 +115,26 @@ describe('DocumentService', () => {
     }
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Fresh Git repo per test: tests reuse the same file paths (e.g.
+    // test-folder/test-document.md) and git history persists across tests,
+    // which breaks revision-count assertions.
+    await fs.rm(testRepoPath, { recursive: true, force: true })
+    await fs.mkdir(testRepoPath, { recursive: true })
+
+    const git = new GitService(testRepoPath)
+    await git.init()
+    await git.addConfig('user.name', 'Test User')
+    await git.addConfig('user.email', 'test@example.com')
+
+    const folderPath = path.join(testRepoPath, 'test-folder')
+    await fs.mkdir(folderPath, { recursive: true })
+    await fs.writeFile(path.join(folderPath, '.gitkeep'), '')
+    await git.commit('Initial test setup', {
+      name: 'Test User',
+      email: 'test@example.com',
+    })
+
     documentService = new DocumentService()
   })
 
@@ -225,7 +225,7 @@ describe('DocumentService', () => {
 
     it('should throw error if folder not found', async () => {
       const input = {
-        folderId: 'non-existent-folder',
+        folderId: '00000000-0000-4000-8000-000000000099',
         title: 'Test Document',
         createdById: testUserId
       }
@@ -237,7 +237,7 @@ describe('DocumentService', () => {
       const input = {
         folderId: testFolderId,
         title: 'Test Document',
-        createdById: 'non-existent-user'
+        createdById: '00000000-0000-4000-8000-000000000098'
       }
 
       await expect(documentService.createDocument(input)).rejects.toThrow('User not found')
@@ -293,7 +293,7 @@ describe('DocumentService', () => {
     })
 
     it('should return null for non-existent document', async () => {
-      const result = await documentService.getDocument('non-existent-id')
+      const result = await documentService.getDocument('00000000-0000-4000-8000-000000000097')
       expect(result).toBeNull()
     })
   })
@@ -311,7 +311,7 @@ describe('DocumentService', () => {
     })
 
     it('should return null for non-existent document', async () => {
-      const content = await documentService.getDocumentContent('non-existent-id')
+      const content = await documentService.getDocumentContent('00000000-0000-4000-8000-000000000097')
       expect(content).toBeNull()
     })
   })
@@ -354,7 +354,7 @@ describe('DocumentService', () => {
 
     it('should throw error if document not found', async () => {
       await expect(
-        documentService.commitChanges('non-existent-id', 'Test', testUserId)
+        documentService.commitChanges('00000000-0000-4000-8000-000000000097', 'Test', testUserId)
       ).rejects.toThrow('Document not found')
     })
   })
@@ -389,7 +389,7 @@ describe('DocumentService', () => {
 
     it('should throw error if document not found', async () => {
       await expect(
-        documentService.discardChanges('non-existent-id')
+        documentService.discardChanges('00000000-0000-4000-8000-000000000097')
       ).rejects.toThrow('Document not found')
     })
   })
@@ -412,7 +412,7 @@ describe('DocumentService', () => {
     })
 
     it('should return null for non-existent document', async () => {
-      const diff = await documentService.getUncommittedDiff('non-existent-id')
+      const diff = await documentService.getUncommittedDiff('00000000-0000-4000-8000-000000000097')
       expect(diff).toBeNull()
     })
   })
@@ -454,7 +454,7 @@ describe('DocumentService', () => {
     })
 
     it('should return empty array for non-existent document', async () => {
-      const revisions = await documentService.getDocumentRevisions('non-existent-id')
+      const revisions = await documentService.getDocumentRevisions('00000000-0000-4000-8000-000000000097')
       expect(revisions).toHaveLength(0)
     })
   })
@@ -493,7 +493,7 @@ describe('DocumentService', () => {
     })
 
     it('should return null for non-existent document', async () => {
-      const content = await documentService.getRevisionContent('non-existent-id', 'some-sha')
+      const content = await documentService.getRevisionContent('00000000-0000-4000-8000-000000000097', 'some-sha')
       expect(content).toBeNull()
     })
   })
@@ -529,7 +529,7 @@ describe('DocumentService', () => {
 
     it('should throw error if document not found', async () => {
       await expect(
-        documentService.restoreToRevision('non-existent-id', 'some-sha', testUserId)
+        documentService.restoreToRevision('00000000-0000-4000-8000-000000000097', 'some-sha', testUserId)
       ).rejects.toThrow('Document not found')
     })
   })
@@ -610,7 +610,7 @@ describe('DocumentService', () => {
     it('should throw error if document not found', async () => {
       await expect(
         documentService.updateDocument(
-          'non-existent-id',
+          '00000000-0000-4000-8000-000000000097',
           { title: 'New Title' },
           testUserId
         )
@@ -644,7 +644,7 @@ describe('DocumentService', () => {
 
     it('should throw error if document not found', async () => {
       await expect(
-        documentService.deleteDocument('non-existent-id', testUserId)
+        documentService.deleteDocument('00000000-0000-4000-8000-000000000097', testUserId)
       ).rejects.toThrow('Document not found')
     })
   })
