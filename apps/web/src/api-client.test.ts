@@ -24,7 +24,7 @@ describe('api-client', () => {
       const [url, options] = mockFetch.mock.calls[0]
       expect(url).toContain('/api/folders/folder-1/documents')
       expect(options.method).toBe('POST')
-      expect(JSON.parse(options.body)).toEqual({ title: 'Test Doc' })
+      expect(JSON.parse(options.body)).toEqual({ title: 'Test Doc', kind: 'MARKDOWN' })
       expect(result.id).toBe('doc-1')
       expect(result.title).toBe('Test Doc')
     })
