@@ -219,6 +219,9 @@ export class YjsWebSocketServer {
     try {
       const decoder = decoding.createDecoder(uint8)
       const messageType = decoding.readVarUint(decoder)
+      if (process.env.YJS_DEBUG) {
+        console.log(`[YjsWS:debug] msg type=${messageType} len=${uint8.length}`)
+      }
 
       if (messageType === messageSync) {
         const encoder = encoding.createEncoder()

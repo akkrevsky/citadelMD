@@ -16,18 +16,27 @@ async function login(page: Awaited<ReturnType<typeof test['info']>>['page']) {
 }
 
 async function ensureDocument(page: Awaited<ReturnType<typeof test['info']>>['page']) {
-  // The app auto-resumes to the last opened document after login. If we are
-  // already on a document edit page, there is nothing to do.
+  // The app auto-resumes to the last opened document after login. That doc
+  // may be an Excalidraw diagram (no .cm-editor), so always verify the
+  // markdown editor is present; otherwise navigate to a markdown document.
   await page.waitForTimeout(1500)
-  if (page.url().includes('/documents/')) {
-    await page.waitForTimeout(3000)
+  const editorVisible = await page
+    .locator('.cm-editor .cm-content')
+    .isVisible()
+    .catch(() => false)
+  if (page.url().includes('/documents/') && editorVisible) {
+    await page.waitForTimeout(2000)
     return
   }
 
-  // Otherwise navigate to the first document from the tree.
-  const docLink = page.locator('.tree-item.document .document-link').first()
-  await expect(docLink).toBeVisible({ timeout: 10000 })
-  await docLink.click()
+  // Navigate to a markdown document: diagram links carry a .doc-kind-icon
+  // (title "Diagram") inside them.
+  const mdLink = page
+    .locator('.tree-item.document .document-link')
+    .filter({ hasNot: page.locator('.doc-kind-icon') })
+    .first()
+  await expect(mdLink).toBeVisible({ timeout: 10000 })
+  await mdLink.click()
   await page.waitForURL(/\/documents\/.*\/edit/, { timeout: 10000 })
   // Wait for Yjs WebSocket connection and editor init
   await page.waitForTimeout(3000)
@@ -339,15 +348,17 @@ test.describe('Batch A — Scroll sync', () => {
     const clientHeight = await previewWrapper.evaluate(el => el.clientHeight)
     expect(scrollHeight).toBeGreaterThan(clientHeight)
 
-    // Scroll-sync check #1: while typing, CodeMirror auto-scrolls the editor
-    // to keep the cursor visible, which emits scroll events — the preview
-    // must have scrolled away from the top too.
+    // Scroll-sync check #1: wheel-scroll the editor down; the preview must
+    // follow and scroll away from the top.
+    const scroller = page.locator('.cm-editor .cm-scroller')
+    await scroller.hover()
+    await page.mouse.wheel(0, 600)
+    await page.waitForTimeout(1000)
     const syncedScroll = await previewWrapper.evaluate(el => el.scrollTop)
     expect(syncedScroll).toBeGreaterThan(0)
 
     // Scroll-sync check #2: scroll the editor back to the top; the preview
     // must follow back to the top.
-    const scroller = page.locator('.cm-editor .cm-scroller')
     await scroller.evaluate((el) => {
       el.scrollTop = 0
     })

@@ -34,6 +34,7 @@ describe('DocumentService', () => {
   let testRedis: Redis
   let testUserId: string
   let testFolderId: string
+  let testSnapshotFolderId: string
   let originalEnv: typeof process.env
 
   beforeAll(async () => {
@@ -59,6 +60,7 @@ describe('DocumentService', () => {
     // Create test user and folder
     testUserId = '00000000-0000-4000-8000-000000000001'
     testFolderId = '00000000-0000-4000-8000-000000000002'
+    testSnapshotFolderId = '00000000-0000-4000-8000-000000000003'
     
     try {
       await prisma.user.upsert({
@@ -81,6 +83,18 @@ describe('DocumentService', () => {
           name: 'test-folder',
           gitPath: 'test-folder',
           createdById: testUserId
+        }
+      })
+
+      await prisma.folder.upsert({
+        where: { id: testSnapshotFolderId },
+        update: {},
+        create: {
+          id: testSnapshotFolderId,
+          name: 'snapshot-folder',
+          gitPath: 'snapshot-folder',
+          createdById: testUserId,
+          mode: 'SNAPSHOT'
         }
       })
     } catch (error) {
@@ -130,6 +144,10 @@ describe('DocumentService', () => {
     const folderPath = path.join(testRepoPath, 'test-folder')
     await fs.mkdir(folderPath, { recursive: true })
     await fs.writeFile(path.join(folderPath, '.gitkeep'), '')
+
+    // SNAPSHOT-mode documents are written directly without git, but the
+    // folder dir still must exist on disk.
+    await fs.mkdir(path.join(testRepoPath, 'snapshot-folder'), { recursive: true })
     await git.commit('Initial test setup', {
       name: 'Test User',
       email: 'test@example.com',
@@ -531,6 +549,71 @@ describe('DocumentService', () => {
       await expect(
         documentService.restoreToRevision('00000000-0000-4000-8000-000000000097', 'some-sha', testUserId)
       ).rejects.toThrow('Document not found')
+    })
+  })
+
+  describe('getRevisionDiff', () => {
+    it('should return diff between a revision and its parent', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Test Document',
+        createdById: testUserId
+      })
+
+      const filePath = path.join(testRepoPath, created.filePath)
+      await fs.writeFile(filePath, '# Updated Title\n\nNew content', 'utf8')
+      await documentService.commitChanges(created.id, 'Second commit', testUserId)
+
+      const revisions = await documentService.getDocumentRevisions(created.id)
+      const diff = await documentService.getRevisionDiff(created.id, revisions[0].sha)
+
+      expect(diff).toContain('+New content')
+      expect(diff).toContain('+# Updated Title')
+      expect(diff).toContain('-# Test Document')
+    })
+
+    it('should return the first-commit diff via the parent commit', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Test Document',
+        createdById: testUserId
+      })
+
+      const revisions = await documentService.getDocumentRevisions(created.id)
+      const firstSha = revisions[revisions.length - 1].sha
+
+      const diff = await documentService.getRevisionDiff(created.id, firstSha)
+      expect(diff).toContain('+# Test Document')
+    })
+
+    it('should return null for non-existent document', async () => {
+      const diff = await documentService.getRevisionDiff(
+        '00000000-0000-4000-8000-000000000097',
+        'f'.repeat(40)
+      )
+      expect(diff).toBeNull()
+    })
+
+    it('should return null for unknown sha', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Test Document',
+        createdById: testUserId
+      })
+
+      const diff = await documentService.getRevisionDiff(created.id, 'f'.repeat(40))
+      expect(diff).toBeNull()
+    })
+
+    it('should return null for SNAPSHOT folders', async () => {
+      const created = await documentService.createDocument({
+        folderId: testSnapshotFolderId,
+        title: 'Snapshot Doc',
+        createdById: testUserId
+      })
+
+      const diff = await documentService.getRevisionDiff(created.id, 'f'.repeat(40))
+      expect(diff).toBeNull()
     })
   })
 

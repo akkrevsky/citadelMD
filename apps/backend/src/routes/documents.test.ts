@@ -17,6 +17,7 @@ const mockDocumentService = {
   getUncommittedDiff: vi.fn(),
   getDocumentRevisions: vi.fn(),
   getRevisionContent: vi.fn(),
+  getRevisionDiff: vi.fn(),
   restoreToRevision: vi.fn(),
 }
 
@@ -206,6 +207,158 @@ describe('Document Routes', () => {
       expect(response.statusCode).toBe(200)
       const body = JSON.parse(response.body)
       expect(body.revisions).toEqual(mockRevisions)
+    })
+
+    it('should pass limit query param to the service', async () => {
+      mockDocumentService.getDocumentRevisions.mockResolvedValue([])
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/revisions?limit=5',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(mockDocumentService.getDocumentRevisions).toHaveBeenCalledWith('doc-123', 5)
+    })
+
+    it('should reject invalid limit values', async () => {
+      for (const limit of ['0', '-1', 'abc', '101']) {
+        const response = await app.inject({
+          method: 'GET',
+          url: `/api/documents/doc-123/revisions?limit=${limit}`,
+          headers: { authorization: 'Bearer test-token' },
+        })
+
+        expect(response.statusCode).toBe(400)
+        expect(JSON.parse(response.body).error.code).toBe('BAD_REQUEST')
+        expect(mockDocumentService.getDocumentRevisions).not.toHaveBeenCalled()
+      }
+    })
+  })
+
+  describe('GET /api/documents/:id/revisions/:sha', () => {
+    it('should return content at revision', async () => {
+      mockDocumentService.getRevisionContent.mockResolvedValue('# Old content')
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/revisions/abc1234',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body).content).toBe('# Old content')
+      expect(mockDocumentService.getRevisionContent).toHaveBeenCalledWith('doc-123', 'abc1234')
+    })
+
+    it('should return 404 when revision does not exist', async () => {
+      mockDocumentService.getRevisionContent.mockResolvedValue(null)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/revisions/abc1234',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(JSON.parse(response.body).error.code).toBe('REVISION_NOT_FOUND')
+    })
+
+    it('should reject invalid SHA', async () => {
+      for (const sha of ['', 'abc', 'x'.repeat(41)]) {
+        const response = await app.inject({
+          method: 'GET',
+          url: `/api/documents/doc-123/revisions/${sha}`,
+          headers: { authorization: 'Bearer test-token' },
+        })
+
+        expect(response.statusCode).toBe(400)
+        expect(JSON.parse(response.body).error.code).toBe('BAD_REQUEST')
+        expect(mockDocumentService.getRevisionContent).not.toHaveBeenCalled()
+      }
+    })
+  })
+
+  describe('GET /api/documents/:id/revisions/:sha/diff', () => {
+    it('should return revision diff', async () => {
+      mockDocumentService.getRevisionDiff.mockResolvedValue('+added line')
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/revisions/abc1234/diff',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body).diff).toBe('+added line')
+      expect(mockDocumentService.getRevisionDiff).toHaveBeenCalledWith('doc-123', 'abc1234')
+    })
+
+    it('should return 404 when diff does not exist', async () => {
+      mockDocumentService.getRevisionDiff.mockResolvedValue(null)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/revisions/abc1234/diff',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(JSON.parse(response.body).error.code).toBe('REVISION_NOT_FOUND')
+    })
+
+    it('should reject invalid SHA', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/revisions/abc/diff',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(mockDocumentService.getRevisionDiff).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST /api/documents/:id/revisions/:sha/restore', () => {
+    it('should restore to revision', async () => {
+      mockDocumentService.restoreToRevision.mockResolvedValue(undefined)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/revisions/abc1234/restore',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body).message).toContain('restored')
+      expect(mockDocumentService.restoreToRevision).toHaveBeenCalledWith('doc-123', 'abc1234', 'user-123')
+    })
+
+    it('should return 404 when document not found', async () => {
+      mockDocumentService.restoreToRevision.mockRejectedValue(
+        Object.assign(new Error('Document not found'), { statusCode: 404 }),
+      )
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/revisions/abc1234/restore',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(JSON.parse(response.body).error.code).toBe('DOCUMENT_NOT_FOUND')
+    })
+
+    it('should reject invalid SHA', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/revisions/abc/restore',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(mockDocumentService.restoreToRevision).not.toHaveBeenCalled()
     })
   })
 

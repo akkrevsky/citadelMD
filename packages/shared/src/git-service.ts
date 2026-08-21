@@ -32,6 +32,9 @@ export interface GitRevision {
   date: string
 }
 
+/** SHA-1 of the empty tree object, the canonical "no parent" diff base. */
+const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+
 export class GitService {
   private git: SimpleGit
 
@@ -131,9 +134,13 @@ export class GitService {
     return this.git.diff([fromSha, toSha, '--', filePath])
   }
 
-  /** Diff from empty tree to sha (first commit of a file). */
+  /**
+   * Diff from the empty tree to sha — renders a file's first commit as
+   * pure additions. git's own --root flag compares against the repo's
+   * root commit, which does not work for files first committed later.
+   */
   async diffFromRoot(filePath: string, sha: string): Promise<string> {
-    return this.git.diff(['--root', sha, '--', filePath])
+    return this.git.diff([EMPTY_TREE_SHA, sha, '--', filePath])
   }
 
   async show(filePath: string, sha: string): Promise<string> {

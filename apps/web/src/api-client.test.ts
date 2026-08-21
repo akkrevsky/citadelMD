@@ -290,4 +290,75 @@ describe('api-client', () => {
       expect(mockFetch.mock.calls[0][1]?.method).toBe('DELETE')
     })
   })
+
+  describe('revision history methods', () => {
+    it('getRevisions fetches the revision list', async () => {
+      const revisions = [{ sha: 'abc1234', message: 'Second commit' }]
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ revisions }),
+      })
+
+      const result = await api.getRevisions('doc-1')
+      expect(mockFetch.mock.calls[0][0]).toContain('/api/documents/doc-1/revisions')
+      expect(result.revisions).toEqual(revisions)
+    })
+
+    it('getRevisions appends limit query param', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ revisions: [] }),
+      })
+
+      await api.getRevisions('doc-1', 5)
+      expect(mockFetch.mock.calls[0][0]).toContain('/revisions?limit=5')
+    })
+
+    it('getRevisionContent returns the content string', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ content: '# Old' }),
+      })
+
+      const content = await api.getRevisionContent('doc-1', 'abc1234')
+      expect(mockFetch.mock.calls[0][0]).toContain('/api/documents/doc-1/revisions/abc1234')
+      expect(content).toBe('# Old')
+    })
+
+    it('getRevisionDiff returns the diff string', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ diff: '+line' }),
+      })
+
+      const diff = await api.getRevisionDiff('doc-1', 'abc1234')
+      expect(mockFetch.mock.calls[0][0]).toContain('/revisions/abc1234/diff')
+      expect(diff).toBe('+line')
+    })
+
+    it('restoreToRevision posts to the restore endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({}) })
+
+      await api.restoreToRevision('doc-1', 'abc1234')
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/documents/doc-1/revisions/abc1234/restore')
+      expect(options.method).toBe('POST')
+    })
+
+    it('getDiff fetches the uncommitted diff', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ diff: '-removed' }),
+      })
+
+      const res = await api.getDiff('doc-1')
+      expect(mockFetch.mock.calls[0][0]).toContain('/api/documents/doc-1/diff')
+      expect(res.diff).toBe('-removed')
+    })
+  })
 })

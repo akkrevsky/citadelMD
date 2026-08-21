@@ -128,4 +128,42 @@ describe('GitService', () => {
     const diff = await git.diffUncommitted('doc1.md')
     expect(diff).toContain('+New uncommitted')
   })
+
+  it('diff shows changes between two revisions', async () => {
+    await fs.writeFile(path.join(tmp, 'doc7.md'), '# Doc 7 v1')
+    await git.commit('Create doc7 v1', { name: 'Test', email: 'test@citadelmd.local' })
+    const v1Sha = (await git.getRevisions('doc7.md'))[0].sha
+
+    await fs.writeFile(path.join(tmp, 'doc7.md'), '# Doc 7 v2\n\nNew line')
+    await git.commit('Update doc7 to v2', { name: 'Test', email: 'test@citadelmd.local' })
+    const v2Sha = (await git.getRevisions('doc7.md'))[0].sha
+
+    const diff = await git.diff('doc7.md', v1Sha, v2Sha)
+    expect(diff).toContain('+# Doc 7 v2')
+    expect(diff).toContain('+New line')
+    expect(diff).toContain('-# Doc 7 v1')
+  })
+
+  it('diffFromRoot shows a file first commit as pure additions', async () => {
+    // An earlier commit exists, so the file's first commit is NOT the repo
+    // root commit — git's own --root flag would not produce a diff here.
+    const isolated = await fs.mkdtemp(path.join(os.tmpdir(), 'citadelmd-root-diff-'))
+    try {
+      const g = new GitService(isolated)
+      await g.init()
+      await g.addConfig('user.name', 'Test')
+      await g.addConfig('user.email', 'test@citadelmd.local')
+      await fs.writeFile(path.join(isolated, '.gitkeep'), '')
+      await g.commit('Init', { name: 'Test', email: 'test@citadelmd.local' })
+      await fs.writeFile(path.join(isolated, 'root-doc.md'), '# Root Doc\n\nFirst line')
+      await g.commit('Create root doc', { name: 'Test', email: 'test@citadelmd.local' })
+      const sha = (await g.getRevisions('root-doc.md'))[0].sha
+
+      const diff = await g.diffFromRoot('root-doc.md', sha)
+      expect(diff).toContain('+# Root Doc')
+      expect(diff).toContain('+First line')
+    } finally {
+      await fs.rm(isolated, { recursive: true, force: true })
+    }
+  })
 })

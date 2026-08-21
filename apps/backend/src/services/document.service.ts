@@ -639,7 +639,18 @@ export class DocumentService {
 
       const result = await this.git.commit(message, author, [document.filePath])
       if (!result) {
-        throw new Error('No changes to commit')
+        // The client's latest Yjs update may still be in flight over the
+        // WebSocket when flush ran (the user presses Ctrl+S right after
+        // typing). Give the update a moment to arrive, flush again, and
+        // retry the commit once before giving up.
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        if (document.kind === 'MARKDOWN') {
+          await this.tryFlushYjsDocument(id)
+        }
+        const retry = await this.git.commit(message, author, [document.filePath])
+        if (!retry) {
+          throw new Error('No changes to commit')
+        }
       }
     })
 
