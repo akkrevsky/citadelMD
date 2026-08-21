@@ -10,6 +10,7 @@ const {
   mockHasUncommitted,
   mockPrismaDocFindUnique,
   mockPrismaDocFindMany,
+  mockPrismaDocUpdate,
   mockPrismaFolderFindUnique,
   mockPrismaUserFindUnique,
 } = vi.hoisted(() => ({
@@ -18,6 +19,7 @@ const {
   mockHasUncommitted: vi.fn().mockResolvedValue(false),
   mockPrismaDocFindUnique: vi.fn(),
   mockPrismaDocFindMany: vi.fn(),
+  mockPrismaDocUpdate: vi.fn(),
   mockPrismaFolderFindUnique: vi.fn(),
   mockPrismaUserFindUnique: vi.fn(),
 }))
@@ -48,7 +50,7 @@ vi.mock('../src/prisma.js', () => ({
       findMany: mockPrismaDocFindMany,
       create: vi.fn(),
       findFirst: vi.fn(),
-      update: vi.fn(),
+      update: mockPrismaDocUpdate,
       delete: vi.fn(),
     },
     folder: {
@@ -153,6 +155,7 @@ describe('DocumentService.updateDocumentContent', () => {
     mockFetch = vi.fn()
     vi.stubGlobal('fetch', mockFetch)
     vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
+    mockPrismaDocUpdate.mockResolvedValue({ updatedAt: new Date() })
   })
 
   it('writes content when no Yjs session is active', async () => {
@@ -160,6 +163,7 @@ describe('DocumentService.updateDocumentContent', () => {
       id: 'doc-1',
       filePath: 'Docs/note.md',
       title: 'Note',
+      kind: 'MARKDOWN',
     })
 
     mockFetch.mockResolvedValue({
@@ -176,6 +180,7 @@ describe('DocumentService.updateDocumentContent', () => {
       id: 'doc-1',
       filePath: 'Docs/note.md',
       title: 'Note',
+      kind: 'MARKDOWN',
     })
 
     mockFetch.mockResolvedValue({
@@ -201,6 +206,7 @@ describe('DocumentService.updateDocumentContent', () => {
       id: 'doc-1',
       filePath: 'Docs/note.md',
       title: 'Note',
+      kind: 'MARKDOWN',
     })
 
     mockPrismaUserFindUnique.mockResolvedValue({
