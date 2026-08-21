@@ -39,6 +39,15 @@ describe('GitService', () => {
     expect(result).toBeNull()
   })
 
+  it('commit returns null when filePaths given but nothing changed', async () => {
+    // simple-git returns an empty commit hash instead of throwing, so the
+    // paths-scoped branch (used by the backend) must detect it too.
+    const result = await git.commit('No changes', { name: 'Test', email: 'test@citadelmd.local' }, [
+      'doc1.md',
+    ])
+    expect(result).toBeNull()
+  })
+
   it('getRevisions returns revision history for a file', async () => {
     await fs.writeFile(path.join(tmp, 'doc3.md'), '# Doc 3 v1')
     await git.commit('Create doc3 v1', { name: 'Test', email: 'test@citadelmd.local' })

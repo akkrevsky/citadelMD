@@ -70,6 +70,12 @@ export class GitService {
       '--author': `${author.name} <${author.email}>`,
     })
 
+    // simple-git does not throw on "nothing to commit" — it returns an
+    // empty commit hash, so treat that as "no changes" for both branches.
+    if (!result.commit) {
+      return null
+    }
+
     return {
       sha: result.commit,
       message
