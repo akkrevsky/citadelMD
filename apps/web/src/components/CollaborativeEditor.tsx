@@ -169,10 +169,16 @@ export function CollaborativeEditor({
     const ydoc = new Y.Doc()
     const ytext = ydoc.getText('markdown')
 
-    // Initialize with content if provided and text is empty
-    if (initialContent && ytext.length === 0) {
-      ytext.insert(0, initialContent)
-    }
+    // DO NOT seed the Y.Text before sync. The server initializes its own
+    // copy from the file on disk; if the client also inserts initialContent,
+    // the sync handshake merges two concurrent insertions at position 0 and
+    // the document content gets duplicated — and the auto-save then writes
+    // the corrupted text back to disk, so merely opening a file modified it.
+    //
+    // The authoritative content arrives from the server via sync step2.
+    // initialContent is only used as a fallback: if the doc is still empty
+    // after a completed sync (e.g. a brand-new file on the server), seed it
+    // once so the server picks the content up via the normal update flow.
 
     // Setup WebSocket provider — connect via nginx /socket path
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -187,6 +193,16 @@ export function CollaborativeEditor({
         ...(shareToken ? { token: shareToken } : {}),
       },
     })
+
+    // Fallback seed after the first completed sync, only if the server had
+    // nothing (empty doc) but the client was handed content to show.
+    const handleSync = (isSynced: boolean) => {
+      if (isSynced && initialContent && ytext.length === 0) {
+        ytext.insert(0, initialContent)
+        provider.off('sync', handleSync)
+      }
+    }
+    provider.on('sync', handleSync)
 
     provider.on('status', (event: { status: string }) => {
       setIsConnected(event.status === 'connected')
