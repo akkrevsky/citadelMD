@@ -1420,7 +1420,7 @@ select:focus {
 .excalidraw-canvas .excalidraw .sidebar {
   left: auto;
   right: 0;
-  border-left: 1px solid var(--sidebar-border-color);
+  border-left: 1px solid var(--color-border);
   border-right: 0;
 }
 
