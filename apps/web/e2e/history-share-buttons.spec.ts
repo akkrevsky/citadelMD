@@ -5,31 +5,52 @@ const BASE = 'http://localhost:8081'
 test('History and Share buttons render in document header', async ({ page }) => {
   // Login
   await page.goto(BASE + '/')
-  await page.waitForLoadState('networkidle')
+  await page.waitForLoadState('domcontentloaded')
   await page.locator('#login').fill('admin')
   await page.locator('#password').fill('admin123')
-  await Promise.all([
-    page.waitForNavigation({ timeout: 10000 }),
-    page.getByRole('button', { name: 'Sign in' }).click(),
-  ])
-  await page.waitForLoadState('networkidle')
-  await expect(page).toHaveURL(BASE + '/')
+  // LoginPage uses client-side navigation — wait for URL change.
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.waitForURL((url) => !url.pathname.includes('login'), { timeout: 10000 })
+  await page.waitForLoadState('domcontentloaded')
 
-  // Open an existing document
-  const docLink = page.locator('.tree-item.document .document-link').first()
-  await expect(docLink).toBeVisible({ timeout: 5000 })
-  await Promise.all([
-    page.waitForNavigation({ timeout: 10000 }),
-    docLink.click(),
-  ])
-  await page.waitForLoadState('networkidle')
+  // The app auto-resumes to the last opened document. If not on a document
+  // page yet, open the first document from the tree; create one via the API
+  // if the tree is empty.
+  await page.waitForTimeout(1500)
+  if (!page.url().includes('/documents/')) {
+    let docLink = page.locator('.tree-item.document .document-link').first()
+    if ((await docLink.count()) === 0) {
+      await page.evaluate(async () => {
+        const res = await fetch('/api/tree', { credentials: 'same-origin' })
+        const body = await res.json()
+        const folderId = body.tree?.[0]?.id
+        if (folderId) {
+          await fetch(`/api/folders/${folderId}/documents`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'E2E Buttons Doc' }),
+          })
+        }
+      })
+      await page.reload()
+      await page.waitForTimeout(2000)
+      docLink = page.locator('.tree-item.document .document-link').first()
+    }
+    await expect(docLink).toBeVisible({ timeout: 10000 })
+    await docLink.click()
+    await page.waitForURL(/\/documents\/.*\/edit/, { timeout: 10000 })
+  }
+  await page.waitForLoadState('domcontentloaded')
   await page.waitForTimeout(3000)
 
   // Take screenshot for debugging
   await page.screenshot({ path: 'test-results/debug-buttons-page.png', fullPage: true })
 
-  // Check all expected buttons exist
-  const historyBtn = page.getByRole('button', { name: /История|Скрыть историю/ })
+  // Check all expected buttons exist. Note: two history buttons exist —
+  // one in the document header, one in the editor toolbar. Target the
+  // header one via .first().
+  const historyBtn = page.getByRole('button', { name: /История|Скрыть историю/ }).first()
   await expect(historyBtn).toBeVisible({ timeout: 5000 })
 
   const shareBtn = page.getByRole('button', { name: 'Share' })
@@ -38,25 +59,19 @@ test('History and Share buttons render in document header', async ({ page }) => 
   const dashboardBtn = page.getByRole('button', { name: 'Dashboard' })
   await expect(dashboardBtn).toBeVisible({ timeout: 5000 })
 
-  // Click History button - modal should appear
+  // Click History button — the version history side panel should appear
   await historyBtn.click()
   await page.waitForTimeout(500)
 
-  // Revision history modal should be visible
-  const historyModal = page.locator('.modal-overlay')
-  await expect(historyModal).toBeVisible({ timeout: 5000 })
+  // History renders as a side panel, not a modal
+  const historyPanel = page.locator('.history-panel')
+  await expect(historyPanel).toBeVisible({ timeout: 5000 })
+
+  // Close the history panel via its close button
+  await page.locator('.history-panel-close').first().click().catch(() => {})
+  await page.waitForTimeout(500)
 
   // Click Share button - dialog should appear
-  // Close the history modal first by clicking its own overlay area
-  await page.locator('.modal-overlay').first().click({ position: { x: 10, y: 10 } })
-  await page.waitForTimeout(500)
-  await page.locator('.modal-overlay').first().count().then(async (c) => {
-    // If still open, close again
-    if (c > 0) {
-      await page.locator('.modal-overlay').first().click({ position: { x: 10, y: 10 } })
-      await page.waitForTimeout(500)
-    }
-  })
   await shareBtn.click()
   await page.waitForTimeout(500)
 

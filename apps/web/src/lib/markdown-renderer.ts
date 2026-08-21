@@ -3,6 +3,7 @@ import texmath from 'markdown-it-texmath'
 import katex from 'katex'
 import DOMPurify from 'dompurify'
 import type { Config as DOMPurifyConfig } from 'dompurify'
+import { excalidrawBlockPlugin } from './excalidraw-plugin.js'
 import 'katex/dist/katex.min.css'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
@@ -28,6 +29,7 @@ export function getMarkdownIt(): MarkdownIt {
   if (md) return md
   md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false })
   md.use(texmath, { engine: katex, delimiters: 'dollars', katexOptions: { throwOnError: false } })
+  md.use(excalidrawBlockPlugin)
   return md
 }
 

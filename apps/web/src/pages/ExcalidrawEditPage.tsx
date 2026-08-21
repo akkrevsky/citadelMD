@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react
 import { useNavigate } from 'react-router-dom'
 import { api, type Document } from '../api-client.js'
 import { RevisionTree } from '../components/RevisionTree.js'
+import { ShareDialog } from '../components/ShareDialog.js'
 import { ConfirmModal } from '../components/ConfirmModal.js'
 import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
 import { StatusBar } from '../components/StatusBar.js'
@@ -40,6 +41,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   const [commitMessage, setCommitMessage] = useState('')
   const [editedTitle, setEditedTitle] = useState(initialDoc.title)
   const [showHistory, setShowHistory] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [toasts, setToasts] = useState<ToastData[]>([])
   const [historyTick, setHistoryTick] = useState(0)
@@ -319,10 +321,18 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                 </button>
               )}
 
+              <button onClick={() => setShowShareDialog(true)}>Share</button>
+
               {usesGit && (
                 <button
                   className={showHistory ? 'btn btn-sm btn-primary' : ''}
-                  onClick={() => setShowHistory(!showHistory)}
+                  onClick={() => {
+                    setShowHistory((v) => {
+                      const next = !v
+                      if (next) setHistoryTick((t) => t + 1)
+                      return next
+                    })
+                  }}
                 >
                   {showHistory ? 'Скрыть историю' : 'История'}
                 </button>
@@ -369,6 +379,13 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
           </aside>
         )}
       </div>
+
+      {showShareDialog && (
+        <ShareDialog
+          documentId={documentId}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
 
       {showDiscardConfirm && (
         <ConfirmModal

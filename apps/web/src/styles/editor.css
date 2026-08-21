@@ -16,6 +16,27 @@
 
 .editor-wrapper .cm-editor .cm-scroller {
   font-family: var(--font-mono);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) var(--color-bg);
+}
+
+.editor-wrapper .cm-editor .cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.editor-wrapper .cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+.editor-wrapper .cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 6px;
+  border: 2px solid var(--color-bg);
+}
+
+.editor-wrapper .cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
 }
 
 .editor-wrapper .cm-editor.cm-focused {

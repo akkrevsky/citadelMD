@@ -4,34 +4,31 @@ const BASE = 'http://localhost:8081'
 
 async function login(page: Awaited<ReturnType<typeof test['info']>>['page']) {
   await page.goto(BASE + '/')
-  await page.waitForLoadState('networkidle')
+  // WS reconnects keep the network busy, so networkidle may never fire.
+  await page.waitForLoadState('domcontentloaded')
   await page.locator('#login').fill('admin')
   await page.locator('#password').fill('admin123')
-  await Promise.all([
-    page.waitForNavigation({ timeout: 10000 }),
-    page.getByRole('button', { name: 'Sign in' }).click(),
-  ])
-  await page.waitForLoadState('networkidle')
+  // LoginPage uses client-side navigation (navigate('/')), which does not
+  // emit a full page load — wait for the URL change instead.
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.waitForURL((url) => !url.pathname.includes('login'), { timeout: 10000 })
+  await page.waitForLoadState('domcontentloaded')
 }
 
 async function ensureDocument(page: Awaited<ReturnType<typeof test['info']>>['page']) {
-  // Check if documents exist
-  const docCount = await page.locator('.tree-item.document .document-link').count()
-  if (docCount === 0) {
-    await page.getByRole('button', { name: 'Create New Document' }).click()
-    await page.waitForTimeout(300)
-    await page.locator('input[placeholder="Document title"]').fill('E2E Test ' + Date.now())
-    await Promise.all([
-      page.waitForNavigation({ timeout: 10000 }),
-      page.getByRole('button', { name: 'Create' }).click(),
-    ])
-  } else {
-    await Promise.all([
-      page.waitForNavigation({ timeout: 10000 }),
-      page.locator('.tree-item.document .document-link').first().click(),
-    ])
+  // The app auto-resumes to the last opened document after login. If we are
+  // already on a document edit page, there is nothing to do.
+  await page.waitForTimeout(1500)
+  if (page.url().includes('/documents/')) {
+    await page.waitForTimeout(3000)
+    return
   }
-  await page.waitForLoadState('networkidle')
+
+  // Otherwise navigate to the first document from the tree.
+  const docLink = page.locator('.tree-item.document .document-link').first()
+  await expect(docLink).toBeVisible({ timeout: 10000 })
+  await docLink.click()
+  await page.waitForURL(/\/documents\/.*\/edit/, { timeout: 10000 })
   // Wait for Yjs WebSocket connection and editor init
   await page.waitForTimeout(3000)
 }
@@ -332,23 +329,35 @@ test.describe('Batch A — Scroll sync', () => {
     await page.keyboard.type(lines, { delay: 1 })
     await page.waitForTimeout(1500)
 
+    // Sanity: the typed content must have reached the editor
+    const editorText = await editor.textContent()
+    expect(editorText).toContain('Line 150')
+
     // Verify preview has scrollable content
     const previewWrapper = page.locator('.preview-wrapper')
     const scrollHeight = await previewWrapper.evaluate(el => el.scrollHeight)
     const clientHeight = await previewWrapper.evaluate(el => el.clientHeight)
     expect(scrollHeight).toBeGreaterThan(clientHeight)
 
-    const initialScroll = await previewWrapper.evaluate(el => el.scrollTop)
+    // Scroll-sync check #1: while typing, CodeMirror auto-scrolls the editor
+    // to keep the cursor visible, which emits scroll events — the preview
+    // must have scrolled away from the top too.
+    const syncedScroll = await previewWrapper.evaluate(el => el.scrollTop)
+    expect(syncedScroll).toBeGreaterThan(0)
 
-    // Scroll editor to bottom
-    await page.locator('.cm-editor .cm-scroller').evaluate(el => {
-      el.scrollTop = el.scrollHeight
-      el.dispatchEvent(new Event('scroll', { bubbles: true }))
+    // Scroll-sync check #2: scroll the editor back to the top; the preview
+    // must follow back to the top.
+    const scroller = page.locator('.cm-editor .cm-scroller')
+    await scroller.evaluate((el) => {
+      el.scrollTop = 0
     })
+    // Dispatch the event through user-like interaction instead:
+    await scroller.hover()
+    await page.mouse.wheel(0, -10000)
     await page.waitForTimeout(1000)
 
-    const newScroll = await previewWrapper.evaluate(el => el.scrollTop)
-    expect(newScroll).toBeGreaterThan(initialScroll)
+    const backToTopScroll = await previewWrapper.evaluate(el => el.scrollTop)
+    expect(backToTopScroll).toBeLessThan(syncedScroll)
   })
 })
 
@@ -379,17 +388,35 @@ test.describe('Batch A — Document switching & save', () => {
     // Remember doc A title to find it in the sidebar later
     const docATitle = await page.locator('.document-title-input').inputValue()
 
-    // Navigate to dashboard and create a second document
-    await page.getByRole('button', { name: 'Dashboard' }).click()
-    await page.waitForTimeout(500)
-    await page.getByRole('button', { name: 'Create New Document' }).click()
-    await page.waitForTimeout(300)
+    // Create a second document via the API (the app auto-resumes on
+    // dashboard visits, so the in-UI create form is no longer reachable).
     const docBTitle = 'DocB_' + Date.now()
-    await page.locator('input[placeholder="Document title"]').fill(docBTitle)
-    await Promise.all([
-      page.waitForNavigation({ timeout: 10000 }),
-      page.getByRole('button', { name: 'Create' }).click(),
-    ])
+    const folderId = await page.evaluate(async () => {
+      const res = await fetch('/api/tree', { credentials: 'same-origin' })
+      const body = await res.json()
+      return body.tree?.[0]?.id ?? null
+    })
+    expect(folderId).toBeTruthy()
+    await page.evaluate(
+      async ([fid, title]) => {
+        await fetch(`/api/folders/${fid}/documents`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title }),
+        })
+      },
+      [folderId, docBTitle],
+    )
+
+    // Open doc B via the sidebar link. The tree was loaded at page mount
+    // and does not know about the API-created document, so reload first.
+    await page.reload()
+    await page.waitForTimeout(2500)
+    const docBLink = page.locator('.tree-item.document .document-link').filter({ hasText: docBTitle })
+    await expect(docBLink).toBeVisible({ timeout: 10000 })
+    await docBLink.click()
+    await page.waitForURL(/\/documents\/.*\/edit/, { timeout: 10000 })
     await page.waitForTimeout(3000)
 
     // Ensure split view on doc B

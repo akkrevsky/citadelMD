@@ -23,6 +23,10 @@ import '../styles/toolbar.css'
 import '../styles/statusbar.css'
 import '../styles/tabbar.css'
 
+const ExcalidrawEmbedModal = React.lazy(() =>
+  import('../components/ExcalidrawEmbedModal.js').then((m) => ({ default: m.ExcalidrawEmbedModal })),
+)
+
 const LAST_DOC_KEY = 'citadelmd-last-opened-id'
 
 export function DocumentEditPage() {
@@ -48,6 +52,7 @@ export function DocumentEditPage() {
   const [scrollRatio, setScrollRatio] = useState(0)
   const [showHistory, setShowHistory] = useState(false)
   const [historyTick, setHistoryTick] = useState(0)
+  const [showExcalidrawModal, setShowExcalidrawModal] = useState(false)
 
   // Document stats
   const [stats, setStats] = useState({ words: 0, chars: 0, lines: 0 })
@@ -63,6 +68,14 @@ export function DocumentEditPage() {
   const handleInsertAtCursor = useCallback((text: string) => {
     window.document.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'insert', placeholder: text } }))
   }, [])
+
+  const handleExcalidrawInsert = useCallback(
+    (svgDataUrl: string) => {
+      handleInsertAtCursor(`\`\`\`excalidraw\n${svgDataUrl}\n\`\`\`\n\n`)
+      setShowExcalidrawModal(false)
+    },
+    [handleInsertAtCursor],
+  )
 
   const { uploadState, handlePaste, handleDrop, handleDragOver, uploadFile } = useFileUpload({
     documentId: id!,
@@ -228,7 +241,9 @@ export function DocumentEditPage() {
 
   function markSavedBaseline() {
     baselineRef.current = contentRef.current
-    setContent(contentRef.current)
+    // NOTE: do NOT setContent() here — it flows into CollaborativeEditor's
+    // initialContent prop and would destroy/recreate the Yjs editor (and its
+    // WebSocket) right after save. The editor already holds the current text.
     setPreviewContent(contentRef.current)
     setHasChanges(false)
     clearUnsavedChanges(id!)
@@ -485,6 +500,7 @@ export function DocumentEditPage() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onFormat={handleFormat}
+        onInsertDiagram={() => setShowExcalidrawModal(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
         showHistory={showHistory}
@@ -565,7 +581,10 @@ export function DocumentEditPage() {
           <div
             className="preview-pane"
             style={{
-              display: viewMode === 'source' ? 'none' : 'block',
+              // Keep display:flex from CSS (the pane is a flex column so
+              // .preview-wrapper's overflow-y:auto actually constrains);
+              // only hide it entirely in source mode.
+              display: viewMode === 'source' ? 'none' : 'flex',
               flex: viewMode === 'split' ? `0 0 ${(1 - splitRatio) * 100}%` : '1 1 100%',
             }}
           >
@@ -632,6 +651,16 @@ export function DocumentEditPage() {
           onConfirm={confirmDiscard}
           onCancel={() => setShowDiscardConfirm(false)}
         />
+      )}
+
+      {showExcalidrawModal && (
+        <React.Suspense fallback={null}>
+          <ExcalidrawEmbedModal
+            theme={theme}
+            onInsert={handleExcalidrawInsert}
+            onClose={() => setShowExcalidrawModal(false)}
+          />
+        </React.Suspense>
       )}
 
       <StatusBar

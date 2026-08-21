@@ -146,8 +146,51 @@
   background: var(--color-warning-bg);
 }
 
+.markdown-preview .excalidraw-embed {
+  margin: 1em 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  overflow-x: auto;
+}
+
+.markdown-preview .excalidraw-embed svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-preview .excalidraw-embed-empty,
+.markdown-preview .excalidraw-embed-invalid {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
 .preview-wrapper {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   background: var(--color-bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) var(--color-bg);
+}
+
+.preview-wrapper::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.preview-wrapper::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+.preview-wrapper::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 6px;
+  border: 2px solid var(--color-bg);
+}
+
+.preview-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-hover);
 }
