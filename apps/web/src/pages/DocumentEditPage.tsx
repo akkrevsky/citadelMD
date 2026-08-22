@@ -51,6 +51,7 @@ export function DocumentEditPage() {
   const [isConnected, setIsConnected] = useState(false)
   const [scrollRatio, setScrollRatio] = useState(0)
   const [showHistory, setShowHistory] = useState(false)
+  const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false)
   const [historyTick, setHistoryTick] = useState(0)
   const [showExcalidrawModal, setShowExcalidrawModal] = useState(false)
 
@@ -495,24 +496,38 @@ export function DocumentEditPage() {
         </div>
       </div>
 
-      {/* Editor toolbar */}
-      <EditorToolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onFormat={handleFormat}
-        onInsertDiagram={() => setShowExcalidrawModal(true)}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        showHistory={showHistory}
-        onToggleHistory={() => {
-          setShowHistory((v) => {
-            const next = !v
-            if (next) setHistoryTick((t) => t + 1)
-            return next
-          })
-        }}
-        historyEnabled={true}
-      />
+      {/* Editor toolbar. On mobile the formatting toolbar collapses into a
+          slide-up drawer toggled by the floating peek button. */}
+      <div className={`editor-toolbar-slot${mobileToolbarOpen ? ' mobile-open' : ''}`}>
+        <button
+          type="button"
+          className="toolbar-peek-btn"
+          onClick={() => setMobileToolbarOpen((v) => !v)}
+          title="Formatting toolbar"
+          aria-label="Toggle formatting toolbar"
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" width="18" height="18">
+            <path d="M3 2h10v2H3V2Zm0 5h10v2H3V7Zm0 5h10v2H3v-2Z" />
+          </svg>
+        </button>
+        <EditorToolbar
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onFormat={handleFormat}
+          onInsertDiagram={() => setShowExcalidrawModal(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          showHistory={showHistory}
+          onToggleHistory={() => {
+            setShowHistory((v) => {
+              const next = !v
+              if (next) setHistoryTick((t) => t + 1)
+              return next
+            })
+          }}
+          historyEnabled={true}
+        />
+      </div>
 
       {/* Attach file button bar */}
       <div className="editor-toolbar" style={{ borderTop: 'none', paddingTop: 0, paddingBottom: '4px' }}>
