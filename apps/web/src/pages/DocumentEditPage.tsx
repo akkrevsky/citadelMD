@@ -17,15 +17,14 @@ import { useTabs } from '../contexts/TabsContext.js'
 import { setUnsavedChanges, clearUnsavedChanges, setUncommittedChanges, clearUncommittedChanges } from '../utils/unsaved.js'
 import { truncate, formatUpdatedAt } from '../utils/string.js'
 import { isModShortcut } from '../utils/keyboard.js'
+import { buildFormatCommand } from '../utils/format.js'
+import { parseHtmlClipboard, dataUrlToFile } from '../utils/html-to-markdown.js'
 import '../styles/editor.css'
 import '../styles/preview.css'
 import '../styles/toolbar.css'
 import '../styles/statusbar.css'
 import '../styles/tabbar.css'
 
-const ExcalidrawEmbedModal = React.lazy(() =>
-  import('../components/ExcalidrawEmbedModal.js').then((m) => ({ default: m.ExcalidrawEmbedModal })),
-)
 
 const LAST_DOC_KEY = 'citadelmd-last-opened-id'
 
@@ -53,7 +52,13 @@ export function DocumentEditPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false)
   const [historyTick, setHistoryTick] = useState(0)
-  const [showExcalidrawModal, setShowExcalidrawModal] = useState(false)
+  const [wordWrap, setWordWrap] = useState(() => {
+    try {
+      return localStorage.getItem('citadelmd-word-wrap') === '1'
+    } catch {
+      return false
+    }
+  })
 
   // Document stats
   const [stats, setStats] = useState({ words: 0, chars: 0, lines: 0 })
@@ -70,18 +75,52 @@ export function DocumentEditPage() {
     window.document.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'insert', placeholder: text } }))
   }, [])
 
-  const handleExcalidrawInsert = useCallback(
-    (svgDataUrl: string) => {
-      handleInsertAtCursor(`\`\`\`excalidraw\n${svgDataUrl}\n\`\`\`\n\n`)
-      setShowExcalidrawModal(false)
-    },
-    [handleInsertAtCursor],
-  )
+
+  const toggleWordWrap = useCallback(() => {
+    setWordWrap((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('citadelmd-word-wrap', next ? '1' : '0')
+      } catch {
+        // localStorage unavailable — keep the session-only toggle
+      }
+      return next
+    })
+  }, [])
 
   const { uploadState, handlePaste, handleDrop, handleDragOver, uploadFile } = useFileUpload({
     documentId: id!,
     onInsert: handleInsertAtCursor,
   })
+
+  // Rich HTML paste: convert formatting to markdown and upload embedded
+  // (data-URI) images so they become regular document attachments.
+  const handleHtmlPaste = useCallback(
+    async (html: string): Promise<string> => {
+      const { text, images } = parseHtmlClipboard(html)
+      if (images.length === 0) return text
+
+      let markdown = text
+      for (let i = 0; i < images.length; i++) {
+        const { dataUrl, alt } = images[i]
+        try {
+          const file = dataUrlToFile(dataUrl, `pasted-image-${i}.png`)
+          const result = await uploadFile(file)
+          if (result) {
+            markdown = markdown.replace(
+              `__IMG_${i}__`,
+              `![${alt || result.fileName}](${result.url})`,
+            )
+          }
+        } catch {
+          // drop failed image placeholders below
+        }
+      }
+      return markdown.replace(/__IMG_\d+__/g, '')
+    },
+    [uploadFile],
+  )
+
 
   useEffect(() => {
     if (!id) {
@@ -174,62 +213,10 @@ export function DocumentEditPage() {
   }, [id])
 
   const handleFormat = useCallback((type: string) => {
-    const detail: Record<string, unknown> = {}
-    switch (type) {
-      case 'undo':
-      case 'redo':
-      case 'find':
-        detail.action = type
-        break
-      case 'bold':
-        detail.action = 'wrap'; detail.wrapper = '**'; detail.placeholder = 'bold text'
-        break
-      case 'italic':
-        detail.action = 'wrap'; detail.wrapper = '*'; detail.placeholder = 'italic text'
-        break
-      case 'strikethrough':
-        detail.action = 'wrap'; detail.wrapper = '~~'; detail.placeholder = 'strikethrough'
-        break
-      case 'code':
-        detail.action = 'wrap'; detail.wrapper = '`'; detail.placeholder = 'code'
-        break
-      case 'h1':
-        detail.action = 'prefix'; detail.prefix = '# '; detail.placeholder = 'Heading 1'
-        break
-      case 'h2':
-        detail.action = 'prefix'; detail.prefix = '## '; detail.placeholder = 'Heading 2'
-        break
-      case 'h3':
-        detail.action = 'prefix'; detail.prefix = '### '; detail.placeholder = 'Heading 3'
-        break
-      case 'quote':
-        detail.action = 'prefix'; detail.prefix = '> '; detail.placeholder = 'quote'
-        break
-      case 'ul':
-        detail.action = 'prefix'; detail.prefix = '- '; detail.placeholder = 'item'
-        break
-      case 'ol':
-        detail.action = 'prefix'; detail.prefix = '1. '; detail.placeholder = 'item'
-        break
-      case 'task':
-        detail.action = 'prefix'; detail.prefix = '- [ ] '; detail.placeholder = 'task'
-        break
-      case 'link':
-        detail.action = 'wrap'; detail.wrapper = {'left':'[', 'right':'](https://)'}; detail.placeholder = 'link text'
-        break
-      case 'image':
-        detail.action = 'wrap'; detail.wrapper = {'left':'![', 'right':'](https://)'}; detail.placeholder = 'alt text'
-        break
-      case 'table':
-        detail.action = 'insert'
-        detail.placeholder = '| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |\n\n'
-        break
-      case 'hr':
-        detail.action = 'insert'
-        detail.placeholder = '\n---\n\n'
-        break
+    const detail = buildFormatCommand(type)
+    if (Object.keys(detail).length > 0) {
+      window.document.dispatchEvent(new CustomEvent('format-command', { detail }))
     }
-    window.document.dispatchEvent(new CustomEvent('format-command', { detail }))
   }, [])
 
   const handleCursorChange = useCallback((line: number, col: number) => {
@@ -518,7 +505,8 @@ export function DocumentEditPage() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           onFormat={handleFormat}
-          onInsertDiagram={() => setShowExcalidrawModal(true)}
+          wordWrap={wordWrap}
+          onToggleWrap={toggleWordWrap}
           theme={theme}
           onToggleTheme={toggleTheme}
           showHistory={showHistory}
@@ -583,6 +571,8 @@ export function DocumentEditPage() {
                 setIsConnected(status === 'connected')
               }}
               onScrollRatio={setScrollRatio}
+              lineWrapping={wordWrap}
+              onHtmlPaste={handleHtmlPaste}
             />
           </div>
 
@@ -672,15 +662,6 @@ export function DocumentEditPage() {
         />
       )}
 
-      {showExcalidrawModal && (
-        <React.Suspense fallback={null}>
-          <ExcalidrawEmbedModal
-            theme={theme}
-            onInsert={handleExcalidrawInsert}
-            onClose={() => setShowExcalidrawModal(false)}
-          />
-        </React.Suspense>
-      )}
 
       <StatusBar
         words={stats.words}

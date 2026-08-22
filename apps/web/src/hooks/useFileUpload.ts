@@ -18,7 +18,7 @@ export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions) {
     error: null,
   })
 
-  const uploadFile = useCallback(async (file: File) => {
+  const uploadFile = useCallback(async (file: File): Promise<{ url: string; fileName: string } | undefined> => {
     const allowedTypes = ['image/', 'application/pdf', 'text/plain', 'text/markdown']
     if (!allowedTypes.some(t => file.type.startsWith(t))) {
       setUploadState({ uploading: false, progress: 0, error: `File type ${file.type} not allowed` })
@@ -41,7 +41,7 @@ export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions) {
 
       const xhr = new XMLHttpRequest()
 
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<{ url: string; fileName: string } | undefined>((resolve, reject) => {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const progress = Math.round((e.loaded / e.total) * 100)
@@ -58,7 +58,7 @@ export function useFileUpload({ documentId, onInsert }: UseFileUploadOptions) {
               : `[${result.upload.fileName}](${result.upload.url})`
             onInsert?.(markdown)
             setUploadState({ uploading: false, progress: 100, error: null })
-            resolve()
+            resolve({ url: result.upload.url, fileName: result.upload.fileName })
           } else {
             try {
               const error = JSON.parse(xhr.responseText)

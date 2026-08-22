@@ -6,7 +6,8 @@ interface EditorToolbarProps {
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   onFormat: (type: string) => void
-  onInsertDiagram?: () => void
+  wordWrap?: boolean
+  onToggleWrap?: () => void
   fileName?: string
   theme?: 'dark' | 'light'
   onToggleTheme?: () => void
@@ -82,11 +83,7 @@ const IconImage = () => (
     <path d="M4.75 4.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5ZM1.5 3.5A1.5 1.5 0 0 1 3 2h10a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H3a1.5 1.5 0 0 1-1.5-1.5v-9ZM3 3a.5.5 0 0 0-.5.5v5.69l2.8-2.09a1.5 1.5 0 0 1 1.8 0l1.9 1.42 1.1-1.1a1.5 1.5 0 0 1 2.12 0l1.28 1.28V3.5A.5.5 0 0 0 13 3H3Zm-.5 8.31V12.5a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-1.69l-2.22-2.22a.5.5 0 0 0-.7 0l-1.1 1.1a.75.75 0 0 1-1.06 0l-1.9-1.42a.5.5 0 0 0-.6 0L2.5 11.31Z" />
   </svg>
 )
-const IconDiagram = () => (
-  <svg viewBox="0 0 16 16" fill="currentColor">
-    <path d="M2.5 3A1.5 1.5 0 0 0 1 4.5v7A1.5 1.5 0 0 0 2.5 13h11a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 13.5 3h-11ZM3 4.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-7Zm1.75 1.5a.75.75 0 0 1 1.06 0L8 7.19l2.19-2.19a.75.75 0 1 1 1.06 1.06L8.53 8.81l2.72 2.72a.75.75 0 1 1-1.06 1.06L7.47 9.87 4.75 12.6a.75.75 0 1 1-1.06-1.06l2.72-2.72L3.81 6.56a.75.75 0 0 1 0-1.06Z" />
-  </svg>
-)
+
 const IconHorizontalRule = () => (
   <svg viewBox="0 0 16 16" fill="currentColor">
     <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" />
@@ -107,7 +104,8 @@ export function EditorToolbar({
   viewMode,
   onViewModeChange,
   onFormat,
-  onInsertDiagram,
+  wordWrap = false,
+  onToggleWrap,
   theme = 'dark',
   onToggleTheme,
   showHistory = false,
@@ -187,11 +185,6 @@ export function EditorToolbar({
         <button className="toolbar-btn" title="Horizontal rule" onMouseDown={handle('hr')}>
           <IconHorizontalRule />
         </button>
-        {onInsertDiagram && (
-          <button className="toolbar-btn" title="Insert Excalidraw diagram" onMouseDown={(e) => { e.preventDefault(); onInsertDiagram() }}>
-            <IconDiagram />
-          </button>
-        )}
       </div>
 
       {/* Find button */}
@@ -205,6 +198,18 @@ export function EditorToolbar({
 
       {/* View mode toggle — keep onClick (no selection interaction) */}
       <div className="toolbar-right">
+        {onToggleWrap && (
+          <button
+            className={`view-mode-btn wrap-toggle-btn${wordWrap ? ' active' : ''}`}
+            onClick={onToggleWrap}
+            title={wordWrap ? 'Перенос строк: вкл' : 'Перенос строк: выкл'}
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+              <path d="M2 3.5A.75.75 0 0 1 2.75 2.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 3.5Zm0 4A.75.75 0 0 1 2.75 6.75h10.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Zm3.25 4a.75.75 0 0 1 .75-.75h7.25a.75.75 0 0 1 0 1.5H6a.75.75 0 0 1-.75-.75Zm-2.5-2.75v1.5a1 1 0 0 0 1 1h1.75a.75.75 0 0 1 0 1.5H3.75A2.5 2.5 0 0 1 1.25 10V8.75a.75.75 0 0 1 1.5 0Z" />
+            </svg>
+          </button>
+        )}
+
         <div className="view-mode-group">
           <button
             className={`view-mode-btn ${viewMode === 'source' ? 'active' : ''}`}

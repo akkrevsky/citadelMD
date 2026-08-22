@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands'
 import { searchKeymap, openSearchPanel, closeSearchPanel } from '@codemirror/search'
@@ -144,6 +144,8 @@ interface CollaborativeEditorProps {
   onDocStats?: (stats: { words: number; chars: number; lines: number }) => void
   onConnectionChange?: (status: 'connected' | 'connecting' | 'disconnected') => void
   onScrollRatio?: (ratio: number) => void
+  lineWrapping?: boolean
+  onHtmlPaste?: (html: string) => Promise<string>
 }
 
 export function CollaborativeEditor({
@@ -156,9 +158,12 @@ export function CollaborativeEditor({
   onDocStats,
   onConnectionChange,
   onScrollRatio,
+  lineWrapping = false,
+  onHtmlPaste,
 }: CollaborativeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const wrapCompartmentRef = useRef(new Compartment())
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -259,6 +264,27 @@ export function CollaborativeEditor({
         }
       }),
       EditorState.readOnly.of(readOnly),
+      wrapCompartmentRef.current.of(lineWrapping ? EditorView.lineWrapping : []),
+      EditorView.domEventHandlers({
+        paste: (event, view) => {
+          // Rich HTML paste: convert to markdown (images get uploaded by
+          // the page via onHtmlPaste) instead of dropping formatting.
+          if (!onHtmlPaste) return false
+          const html = event.clipboardData?.getData('text/html')
+          if (!html || !html.trim()) return false
+          event.preventDefault()
+          void (async () => {
+            const markdown = await onHtmlPaste(html)
+            const { from, to } = view.state.selection.main
+            view.dispatch({
+              changes: { from, to, insert: markdown },
+              selection: { anchor: from + markdown.length },
+              scrollIntoView: true,
+            })
+          })()
+          return true
+        },
+      }),
     ]
 
     // Create editor state with Yjs collaboration
@@ -371,6 +397,16 @@ export function CollaborativeEditor({
       view.destroy()
     }
   }, [documentId, initialContent, readOnly, shareToken, onContentChange, onCursorChange, onDocStats])
+
+  // Toggle line wrapping without recreating the editor (which would
+  // tear down the Yjs provider).
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: wrapCompartmentRef.current.reconfigure(
+        lineWrapping ? EditorView.lineWrapping : [],
+      ),
+    })
+  }, [lineWrapping])
 
   return (
     <div className="editor-wrapper">
