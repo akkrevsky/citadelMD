@@ -20,7 +20,10 @@ export function MarkdownPreview({ content, className = '', scrollRatio }: Markdo
     if (maxScroll > 0) {
       scrollable.scrollTop = scrollRatio * maxScroll
     }
-  }, [scrollRatio])
+    // Content changes replace the DOM and reset the scroll position, so
+    // re-apply the ratio after them too — otherwise the preview stays at
+    // the top while typing at the bottom of a long document.
+  }, [scrollRatio, content])
 
   return (
     <div
