@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatCreatedAt } from './format'
+import { formatCreatedAt, buildFormatCommand } from './format'
 
 describe('formatCreatedAt', () => {
   it('formats an ISO string as MM.DD HH-MM', () => {
@@ -35,5 +35,52 @@ describe('formatCreatedAt', () => {
     const hh = String(d.getHours()).padStart(2, '0')
     const min = String(d.getMinutes()).padStart(2, '0')
     expect(out).toBe(`${mm}.${dd} ${hh}-${min}`)
+  })
+})
+
+describe('buildFormatCommand', () => {
+  it('builds the code-insertion wrap command', () => {
+    expect(buildFormatCommand('code')).toEqual({
+      action: 'wrap',
+      wrapper: '`',
+      placeholder: 'code',
+    })
+  })
+
+  it('builds bold and link wrap commands', () => {
+    expect(buildFormatCommand('bold')).toEqual({
+      action: 'wrap',
+      wrapper: '**',
+      placeholder: 'bold text',
+    })
+    expect(buildFormatCommand('link')).toEqual({
+      action: 'wrap',
+      wrapper: { left: '[', right: '](https://)' },
+      placeholder: 'link text',
+    })
+  })
+
+  it('builds prefix commands for headings and task lists', () => {
+    expect(buildFormatCommand('h2')).toEqual({ action: 'prefix', prefix: '## ', placeholder: 'Heading 2' })
+    expect(buildFormatCommand('task')).toEqual({ action: 'prefix', prefix: '- [ ] ', placeholder: 'task' })
+  })
+
+  it('builds insert commands for tables and horizontal rules', () => {
+    const table = buildFormatCommand('table')
+    expect(table.action).toBe('insert')
+    expect(table.placeholder).toContain('| Header 1 | Header 2 |')
+    const hr = buildFormatCommand('hr')
+    expect(hr.action).toBe('insert')
+    expect(hr.placeholder).toContain('---')
+  })
+
+  it('builds direct action commands', () => {
+    expect(buildFormatCommand('undo')).toEqual({ action: 'undo' })
+    expect(buildFormatCommand('redo')).toEqual({ action: 'redo' })
+    expect(buildFormatCommand('find')).toEqual({ action: 'find' })
+  })
+
+  it('returns an empty payload for unknown types', () => {
+    expect(buildFormatCommand('nonsense')).toEqual({})
   })
 })

@@ -1429,36 +1429,6 @@ select:focus {
   margin-right: 0.15rem;
 }
 
-.excalidraw-footer {
-  display: flex;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.excalidraw-modal {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  width: min(960px, 92vw);
-  height: min(720px, 88vh);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--color-border);
-}
-
-.excalidraw-modal-canvas {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-}
-
-.excalidraw-modal-canvas .excalidraw-canvas,
-.excalidraw-modal-canvas .excalidraw {
-  height: 100%;
-}
 
 /* ---- Share Dialog ---- */
 
