@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import '@excalidraw/excalidraw/index.css'
+// Fixes Excalidraw's invalid `display: swap` descriptor with a real
+// font-display: swap (must come after the package CSS to win the cascade).
+import '../styles/excalidraw-fonts.css'
 
 export interface ExcalidrawSceneData {
   type?: string

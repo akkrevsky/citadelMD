@@ -1,0 +1,44 @@
+/*
+ * Excalidraw's bundled stylesheet declares the Assistant family with
+ * `display: swap` — an invalid @font-face descriptor. Browsers ignore it,
+ * leaving font-display at its default (`auto`), which hides text during the
+ * block period; Chromium then steps in on slow networks and logs a
+ * "[Intervention] Slow network is detected" warning per font.
+ * Re-declaring the same faces here with a real `font-display: swap` makes the
+ * fallback-then-swap behaviour explicit: text renders immediately in the
+ * fallback font and swaps in once the woff2 arrives.
+ * Imported after '@excalidraw/excalidraw/index.css' so these rules win the
+ * cascade for the same family/weight/style.
+ */
+
+@font-face {
+  font-family: 'Assistant';
+  src: url('../assets/fonts/Assistant-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Assistant';
+  src: url('../assets/fonts/Assistant-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Assistant';
+  src: url('../assets/fonts/Assistant-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Assistant';
+  src: url('../assets/fonts/Assistant-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
