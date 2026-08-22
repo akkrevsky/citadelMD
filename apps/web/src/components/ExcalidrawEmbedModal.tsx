@@ -20,7 +20,14 @@ export function ExcalidrawEmbedModal({ onInsert, onClose, theme = 'light' }: Exc
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const apiRef = useRef<{ exportToSvg: (opts: Record<string, unknown>) => Promise<SVGSVGElement> } | null>(null)
+  // Excalidraw 0.18 removed exportToSvg from the imperative API; keep the
+  // full API ref so we can pull scene elements/state for the standalone
+  // exportToSvg function below.
+  const apiRef = useRef<{
+    getSceneElements: () => readonly unknown[]
+    getAppState: () => Record<string, unknown>
+    getFiles: () => Record<string, unknown>
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -44,7 +51,11 @@ export function ExcalidrawEmbedModal({ onInsert, onClose, theme = 'light' }: Exc
     if (!apiRef.current) return
     setIsSaving(true)
     try {
-      const svg = await apiRef.current.exportToSvg({
+      const { exportToSvg } = await import('@excalidraw/excalidraw')
+      const svg = await exportToSvg({
+        elements: apiRef.current.getSceneElements(),
+        appState: apiRef.current.getAppState(),
+        files: apiRef.current.getFiles(),
         exportBackground: true,
         exportWithDarkMode: theme === 'dark',
       })
