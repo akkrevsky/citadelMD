@@ -3,6 +3,11 @@ import texmath from 'markdown-it-texmath'
 import katex from 'katex'
 import DOMPurify from 'dompurify'
 import type { Config as DOMPurifyConfig } from 'dompurify'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-json'
+import 'prismjs/components/prism-markdown'
 import { excalidrawBlockPlugin } from './excalidraw-plugin.js'
 import 'katex/dist/katex.min.css'
 
@@ -27,7 +32,24 @@ let md: MarkdownIt | null = null
 
 export function getMarkdownIt(): MarkdownIt {
   if (md) return md
-  md = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false })
+  md = new MarkdownIt({
+    html: false,
+    linkify: true,
+    typographer: true,
+    breaks: false,
+    // Syntax highlighting for fenced code blocks. Prism escapes the code
+    // itself; DOMPurify runs over the final HTML as a second layer.
+    highlight: (str, lang) => {
+      if (lang && lang in Prism.languages) {
+        try {
+          return Prism.highlight(str, Prism.languages[lang], lang)
+        } catch {
+          // malformed code — fall through to default escaping
+        }
+      }
+      return '' // empty string -> markdown-it applies its own escaping
+    },
+  })
   md.use(texmath, { engine: katex, delimiters: 'dollars', katexOptions: { throwOnError: false } })
   md.use(excalidrawBlockPlugin)
   return md

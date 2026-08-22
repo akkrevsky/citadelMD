@@ -80,6 +80,67 @@
   color: var(--color-text);
 }
 
+/* Prism token colors — reuse the CodeMirror palette so highlighting
+   matches the editor in both dark and light themes */
+.markdown-preview pre code .token.comment,
+.markdown-preview pre code .token.prolog,
+.markdown-preview pre code .token.doctype,
+.markdown-preview pre code .token.cdata {
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+.markdown-preview pre code .token.keyword,
+.markdown-preview pre code .token.atrule {
+  color: var(--cm-keyword);
+}
+
+.markdown-preview pre code .token.string,
+.markdown-preview pre code .token.attr-value,
+.markdown-preview pre code .token.char,
+.markdown-preview pre code .token.builtin,
+.markdown-preview pre code .token.inserted {
+  color: var(--cm-string);
+}
+
+.markdown-preview pre code .token.number,
+.markdown-preview pre code .token.boolean {
+  color: var(--cm-number);
+}
+
+.markdown-preview pre code .token.function,
+.markdown-preview pre code .token.class-name {
+  color: var(--cm-function);
+}
+
+.markdown-preview pre code .token.tag,
+.markdown-preview pre code .token.attr-name,
+.markdown-preview pre code .token.selector {
+  color: var(--cm-tag);
+}
+
+.markdown-preview pre code .token.operator,
+.markdown-preview pre code .token.punctuation,
+.markdown-preview pre code .token.property,
+.markdown-preview pre code .token.constant,
+.markdown-preview pre code .token.symbol,
+.markdown-preview pre code .token.variable {
+  color: var(--cm-type);
+}
+
+.markdown-preview pre code .token.title {
+  color: var(--cm-heading);
+}
+
+.markdown-preview pre code .token.deleted {
+  color: var(--color-danger);
+}
+
+.markdown-preview pre code .token.important,
+.markdown-preview pre code .token.bold {
+  font-weight: bold;
+}
+
 .markdown-preview blockquote {
   border-left: 3px solid var(--color-blockquote-border);
   margin: 1em 0;
