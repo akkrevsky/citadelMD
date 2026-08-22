@@ -17,10 +17,15 @@ export interface DocumentSession {
 export class YjsManager {
   private documents = new Map<string, DocumentSession>()
   private readonly gitRepoPath: string
+  private readonly gracePeriodMs: number
   private readonly autoSaveInterval = 5000 // 5 seconds
   private readonly tryLock: (filePath: string) => Promise<FileLockReleaser | null>
 
-  constructor(gitRepoPath = process.env.GIT_REPO_PATH || '/var/lib/md-collab/docs') {
+  constructor(
+    gitRepoPath = process.env.GIT_REPO_PATH || '/var/lib/md-collab/docs',
+    gracePeriodMs = 30000,
+  ) {
+    this.gracePeriodMs = gracePeriodMs
     this.gitRepoPath = gitRepoPath
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
     // lazyConnect: the client only connects on the first lock command
@@ -124,7 +129,7 @@ export class YjsManager {
       meta.set('generation', 0)
     }
 
-    console.log(`[YjsManager] Initialized document ${docId} from ${filePath}`)
+    console.log(`[YjsManager] Initialized document ${docId} from ${filePath} (text ${ytext.length} chars, gen ${meta.get('generation')}, conns ${session.connections.size})`)
 
     return session
   }
@@ -154,13 +159,18 @@ export class YjsManager {
         this.stopAutoSave(docId)
         // Final flush before cleanup
         this.flushDocument(docId)
+        console.log(`[YjsManager] Final flush on last disconnect for ${docId}`)
         // Keep document for a bit in case of reconnection
         setTimeout(() => {
-          if (session.connections.size === 0) {
+          // Guard by session identity: a stale timer from a PREVIOUS session
+          // must never delete the CURRENT session stored under the same
+          // docId — that would silently drop live edits (observed as clients
+          // reconnecting to stale content after ~30s).
+          if (session.connections.size === 0 && this.documents.get(docId) === session) {
             this.documents.delete(docId)
             console.log(`[YjsManager] Cleaned up document ${docId}`)
           }
-        }, 30000) // 30 second grace period
+        }, this.gracePeriodMs) // grace period before the session is dropped
       }
     }
   }
@@ -196,7 +206,7 @@ export class YjsManager {
         return
       }
       this.flushDocument(docId)
-      console.log(`[YjsManager] Auto-saved document ${docId}`)
+      console.log(`[YjsManager] Auto-saved document ${docId} (${session.ydoc.getText('markdown').length} chars)`)
     } catch (error) {
       console.error(`[YjsManager] Auto-save failed for ${docId}:`, error)
     } finally {

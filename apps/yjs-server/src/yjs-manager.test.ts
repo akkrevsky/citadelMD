@@ -93,6 +93,27 @@ describe('YjsManager sidecar persistence', () => {
     expect(second.ydoc.getMap('meta').get('generation')).toBe(1)
   })
 
+  it('a stale grace timer does not delete a newer session on the same docId', async () => {
+    const quick = new YjsManager(repo, 50)
+    writeFileSync(join(repo, FILE), CONTENT, 'utf8')
+
+    // Session 1: a client connects and disconnects — the 50ms grace timer
+    // is armed.
+    const s1 = quick.initDocument(DOC, FILE)
+    quick.addConnection(DOC, 'c1')
+    quick.removeConnection(DOC, 'c1')
+
+    // Session 1 is deleted early (as another stale timer would have done),
+    // and a new session with a live client takes its place.
+    ;(quick as unknown as { documents: Map<string, unknown> }).documents.delete(DOC)
+    const s2 = quick.initDocument(DOC, FILE)
+    quick.addConnection(DOC, 'c2')
+
+    // Wait for the stale timer to fire: it must NOT delete the new session.
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    expect(quick.getDocument(DOC)).toBe(s2)
+  })
+
   it('falls back to the file when the sidecar is corrupt', () => {
     writeFileSync(join(repo, FILE), CONTENT, 'utf8')
     writeFileSync(join(repo, FILE + '.ydoc'), Buffer.from('not a yjs update'))
