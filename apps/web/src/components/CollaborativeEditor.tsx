@@ -166,6 +166,11 @@ export function CollaborativeEditor({
   const wrapCompartmentRef = useRef(new Compartment())
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Server bumps a generation counter when it resets the document
+  // (discard/restore). Bumping resetTick tears down the provider + Y.Doc and
+  // re-syncs from scratch, so stale local CRDT items never merge back.
+  const [resetTick, setResetTick] = useState(0)
+  const seenGenerationRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!editorRef.current) return
@@ -202,7 +207,18 @@ export function CollaborativeEditor({
     // Fallback seed after the first completed sync, only if the server had
     // nothing (empty doc) but the client was handed content to show.
     const handleSync = (isSynced: boolean) => {
-      if (isSynced && initialContent && ytext.length === 0) {
+      if (!isSynced) return
+      // If the server reset the document (discard/restore bumps the
+      // generation), our local state predates the reset and merging it back
+      // would resurrect deleted content — drop it and re-sync clean.
+      const generation = (ydoc.getMap('meta').get('generation') as number | undefined) ?? 0
+      if (seenGenerationRef.current !== null && generation > seenGenerationRef.current) {
+        seenGenerationRef.current = generation
+        setResetTick((t) => t + 1)
+        return
+      }
+      seenGenerationRef.current = generation
+      if (initialContent && ytext.length === 0) {
         ytext.insert(0, initialContent)
         provider.off('sync', handleSync)
       }
@@ -396,7 +412,7 @@ export function CollaborativeEditor({
       provider.destroy()
       view.destroy()
     }
-  }, [documentId, initialContent, readOnly, shareToken, onContentChange, onCursorChange, onDocStats])
+  }, [documentId, initialContent, readOnly, shareToken, onContentChange, onCursorChange, onDocStats, resetTick])
 
   // Toggle line wrapping without recreating the editor (which would
   // tear down the Yjs provider).
