@@ -388,12 +388,16 @@ export function DocumentEditPage() {
       : ''
   const fullTitlePath = doc ? (folderPath ? `${folderPath}/${doc.title}` : doc.title) : ''
 
-  if (!loading && !error && doc?.kind === 'EXCALIDRAW' && id) {
+  if (!loading && !error && doc?.kind === 'EXCALIDRAW' && doc.id === id) {
     return <ExcalidrawEditPage documentId={id} initialDoc={doc} />
   }
 
   let body: React.ReactNode
-  if (loading) {
+  // Stale doc after SPA navigation: until loadDocument finishes for the new
+  // id, `doc` still holds the previous document. Rendering the markdown
+  // editor in that frame would open a WebSocket for the NEW document (even
+  // an Excalidraw one, which must not get Yjs connections).
+  if (loading || (doc && doc.id !== id)) {
     body = <div className="loading">Loading document...</div>
   } else if (error) {
     body = (
