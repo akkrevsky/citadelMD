@@ -348,14 +348,27 @@ test.describe('Batch A — Scroll sync', () => {
     const clientHeight = await previewWrapper.evaluate(el => el.clientHeight)
     expect(scrollHeight).toBeGreaterThan(clientHeight)
 
-    // Scroll-sync check #1: wheel-scroll the editor down; the preview must
-    // follow and scroll away from the top.
+    // Typing scrolls the editor to follow the cursor, leaving the scroll
+    // position arbitrary — reset to the top so the wheel checks below start
+    // from a known state.
     const scroller = page.locator('.cm-editor .cm-scroller')
+    await scroller.evaluate((el: HTMLElement) => { el.scrollTop = 0 })
+    await page.waitForTimeout(500)
+
+    // Scroll-sync check #1: wheel-scroll the editor down; the preview must
+    // follow and scroll away from the top. The poll re-wheels on each
+    // interval so a single swallowed wheel event cannot flake the check.
     await scroller.hover()
-    await page.mouse.wheel(0, 600)
-    await page.waitForTimeout(1000)
+    await expect
+      .poll(
+        async () => {
+          await page.mouse.wheel(0, 400)
+          return previewWrapper.evaluate(el => el.scrollTop)
+        },
+        { timeout: 10000, intervals: [500] },
+      )
+      .toBeGreaterThan(0)
     const syncedScroll = await previewWrapper.evaluate(el => el.scrollTop)
-    expect(syncedScroll).toBeGreaterThan(0)
 
     // Scroll-sync check #2: scroll the editor back to the top; the preview
     // must follow back to the top.
@@ -364,11 +377,15 @@ test.describe('Batch A — Scroll sync', () => {
     })
     // Dispatch the event through user-like interaction instead:
     await scroller.hover()
-    await page.mouse.wheel(0, -10000)
-    await page.waitForTimeout(1000)
-
-    const backToTopScroll = await previewWrapper.evaluate(el => el.scrollTop)
-    expect(backToTopScroll).toBeLessThan(syncedScroll)
+    await expect
+      .poll(
+        async () => {
+          await page.mouse.wheel(0, -800)
+          return previewWrapper.evaluate(el => el.scrollTop)
+        },
+        { timeout: 10000, intervals: [500] },
+      )
+      .toBeLessThan(syncedScroll)
   })
 })
 
@@ -441,17 +458,19 @@ test.describe('Batch A — Document switching & save', () => {
     await page.keyboard.press('Control+a')
     await page.keyboard.press('Backspace')
     await page.keyboard.type('# MarkerDocBeta')
-    await page.waitForTimeout(1000)
-    previewHtml = await page.locator('.markdown-preview').innerHTML()
-    expect(previewHtml).toContain('MarkerDocBeta')
+    await expect
+      .poll(async () => page.locator('.markdown-preview').innerHTML(), { timeout: 5000 })
+      .toContain('MarkerDocBeta')
 
     // Navigate back to doc A via the sidebar (client-side navigation)
     await page.locator('.tree-item.document .document-link').filter({ hasText: docATitle }).click()
     await page.waitForTimeout(3000)
 
     // Preview must now show doc A's marker, NOT doc B's stale content
+    await expect
+      .poll(async () => page.locator('.markdown-preview').innerHTML(), { timeout: 5000 })
+      .toContain('MarkerDocAlpha')
     previewHtml = await page.locator('.markdown-preview').innerHTML()
-    expect(previewHtml).toContain('MarkerDocAlpha')
     expect(previewHtml).not.toContain('MarkerDocBeta')
   })
 
