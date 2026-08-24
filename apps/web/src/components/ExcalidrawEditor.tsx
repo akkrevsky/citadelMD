@@ -35,59 +35,32 @@ function ExcalidrawEditor({ initialData, onChange, onSettled, theme = 'light' }:
   onSettledRef.current = onSettled
 
   // Excalidraw fires change events while restoring a scene: it reflows
-  // text-bound elements once the fonts finish loading, which mutates real
-  // geometry (x/y/width/height). Until the editor settles, suppress those
-  // events; then report the settled scene so the caller can rebaseline
-  // against it instead of treating the reflow as a user change.
-  useEffect(() => {
-    readyRef.current = false
-    settledRef.current = false
-    let cancelled = false
-
-    const settle = () => {
-      if (cancelled || settledRef.current) return
-      settledRef.current = true
+  // text-bound elements when fonts finish loading, mutating real geometry
+  // (x/y/width/height). Such programmatic changes must never count as user
+  // edits. Gate change events until the FIRST user interaction with the
+  // canvas (pointerdown/keydown); at that moment snapshot the current scene
+  // and report it as settled so the caller rebaselines against it.
+  const settleNow = useCallback(() => {
+    if (settledRef.current) {
       readyRef.current = true
-      const api = apiRef.current
-      if (api && onSettledRef.current) {
-        const elements = api.getSceneElements()
-        const appState = api.getAppState()
-        onSettledRef.current({
-          type: 'excalidraw',
-          version: 2,
-          source: 'citadelmd',
-          elements: elements ?? [],
-          appState: { viewBackgroundColor: appState?.viewBackgroundColor ?? '#ffffff' },
-          files: {},
-        })
-      }
+      return
     }
-
-    const fontsReady = document.fonts?.ready
-    let timer: ReturnType<typeof setTimeout>
-    if (fontsReady) {
-      fontsReady
-        .then(() => {
-          if (!cancelled) timer = setTimeout(settle, 400)
-        })
-        .catch(() => {
-          if (!cancelled) timer = setTimeout(settle, 400)
-        })
-    } else {
-      timer = setTimeout(settle, 800)
+    const api = apiRef.current
+    if (!api) return
+    settledRef.current = true
+    readyRef.current = true
+    if (onSettledRef.current) {
+      const elements = api.getSceneElements()
+      const appState = api.getAppState()
+      onSettledRef.current({
+        type: 'excalidraw',
+        version: 2,
+        source: 'citadelmd',
+        elements: elements ?? [],
+        appState: { viewBackgroundColor: appState?.viewBackgroundColor ?? '#ffffff' },
+        files: {},
+      })
     }
-    // Fallback: if fonts never resolve, open the gate anyway.
-    const fallback = setTimeout(settle, 3000)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-      clearTimeout(fallback)
-    }
-    // Run once per editor instance: the parent remounts via the key prop on
-    // real reloads (loadScene/discard). Depending on initialData would loop,
-    // because the settled scene is fed back through the scene state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -142,7 +115,11 @@ function ExcalidrawEditor({ initialData, onChange, onSettled, theme = 'light' }:
     : undefined
 
   return (
-    <div className="excalidraw-canvas">
+    <div
+      className="excalidraw-canvas"
+      onPointerDownCapture={settleNow}
+      onKeyDownCapture={settleNow}
+    >
       <Excalidraw
         excalidrawAPI={(api: any) => {
           apiRef.current = api
