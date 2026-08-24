@@ -20,6 +20,8 @@ export interface FolderTreeNode {
   id: string
   name: string
   mode: 'GIT' | 'SNAPSHOT'
+  parentId: string | null
+  gitPath: string
   permission: FolderPermissionLevel
   children: FolderTreeNode[]
   documents: {
@@ -434,6 +436,8 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
       id: f.id,
       name: f.name,
       mode: f.mode,
+      parentId: f.parentId,
+      gitPath: f.gitPath,
       permission: 'ADMIN' as FolderPermissionLevel,
       children,
       documents,
@@ -512,6 +516,8 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
       id: f.id,
       name: f.name,
       mode: f.mode,
+      parentId: f.parentId,
+      gitPath: f.gitPath,
       permission,
       children,
       documents,
