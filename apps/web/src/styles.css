@@ -1611,8 +1611,12 @@ select:focus {
 }
 
 .doc-kind-icon {
-  color: var(--color-primary);
+  width: 14px;
+  height: 14px;
   margin-right: 0.15rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
 
 

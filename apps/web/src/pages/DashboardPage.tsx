@@ -16,6 +16,7 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { findFirstDocument, collectDocumentIds, findFirstFolder } from '../utils/tree'
 import { IconChevronRight, IconFolder, IconFile } from '../components/icons'
 import logo from '../assets/logo.png'
+import excalidrawLogo from '../assets/excalidraw-logo.png'
 
 const LAST_DOC_KEY = 'citadelmd-last-opened-id'
 
@@ -363,7 +364,14 @@ function DashboardWithTabs() {
             <IconFile className="tree-icon file" />
             <span className="tree-row-label">
               {unsaved && <span className="doc-state-marker">*</span>}
-              {item.kind === 'EXCALIDRAW' && <span className="doc-kind-icon" title="Diagram">D </span>}
+              {item.kind === 'EXCALIDRAW' && (
+                <img
+                  className="doc-kind-icon"
+                  src={excalidrawLogo}
+                  alt="Diagram"
+                  title="Diagram"
+                />
+              )}
               {item.name}
             </span>
             {item.updatedAt && (
