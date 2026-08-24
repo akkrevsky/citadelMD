@@ -23,11 +23,13 @@ rebuild:
 	docker compose -f docker-compose.yml exec backend npx prisma db seed
 
 # Rebuild images from current source and recreate containers in place
-# (no down, no DB migration — untouched services keep running). Waits for
-# health and runs smoke checks against the web entry point.
+# (no down, no DB migration — untouched services keep running). --force-recreate
+# is required: `up -d` alone does NOT swap containers to the new image.
+# Services are recreated sequentially, so the availability gap is seconds.
 redeploy:
 	docker compose -f docker-compose.yml build
-	docker compose -f docker-compose.yml up -d --remove-orphans
+	docker compose -f docker-compose.yml up -d --force-recreate --no-deps --remove-orphans \
+		backend web yjs-server mcp-server
 	@echo "Waiting for services to become healthy..."
 	@for i in $$(seq 1 60); do \
 	  bad=$$(docker compose -f docker-compose.yml ps --format '{{.Health}}' | grep -E 'unhealthy|starting' || true); \
