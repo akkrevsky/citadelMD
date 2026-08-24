@@ -45,9 +45,16 @@ function DashboardWithTabs() {
   const [treeLoading, setTreeLoading] = useState(true)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [sidebarView, setSidebarView] = useState<SidebarView>('folders')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() =>
-    localStorage.getItem('citadelmd-sidebar-collapsed') === '1',
-  )
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    const stored = localStorage.getItem('citadelmd-sidebar-collapsed')
+    if (stored !== null) return stored === '1'
+    // Default to collapsed on narrow screens so the editor keeps its space
+    try {
+      return window.matchMedia('(max-width: 768px)').matches
+    } catch {
+      return false
+    }
+  })
   const [docStateTick, setDocStateTick] = useState(0)
   const [folderSettings, setFolderSettings] = useState<{
     id: string

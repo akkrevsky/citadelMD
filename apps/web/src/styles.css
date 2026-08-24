@@ -1647,12 +1647,13 @@ select:focus {
 /* ===== Mobile / narrow screens: keep the note content front and center ===== */
 
 @media (max-width: 768px) {
-  /* Compact single-row header: title + essential actions only */
+  /* Compact header: title row + wrapping actions so every button is
+     reachable without horizontal scrolling */
   .document-header {
     padding: 0.35rem 0.5rem;
     gap: 0.4rem;
     min-height: 40px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
   }
 
@@ -1670,13 +1671,8 @@ select:focus {
   .document-actions {
     gap: 0.3rem;
     flex-shrink: 0;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .document-actions::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    max-width: 100%;
   }
 
   .document-actions button {
