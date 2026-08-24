@@ -1704,6 +1704,9 @@ select:focus {
   white-space: pre;
   padding: 0.5rem;
   flex-shrink: 0;
+  /* Keep the layout at the art's natural size — the box clips and the
+     transform scales it down, so a % width here would double-squeeze. */
+  width: max-content;
 }
 
 .ai-chat-bar {
