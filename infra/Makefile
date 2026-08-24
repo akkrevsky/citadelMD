@@ -1,4 +1,4 @@
-.PHONY: install dev up build rebuild down logs ps migrate seed backup \
+.PHONY: install dev up build rebuild redeploy down logs ps migrate seed backup \
 	debug-up debug-down debug-stop debug-ps debug-logs debug-migrate debug-seed debug-setup \
 	debug-dev debug
 
@@ -21,6 +21,24 @@ rebuild:
 	docker compose -f docker-compose.yml up -d
 	docker compose -f docker-compose.yml exec backend npx prisma migrate deploy
 	docker compose -f docker-compose.yml exec backend npx prisma db seed
+
+# Rebuild images from current source and recreate containers in place
+# (no down, no DB migration — untouched services keep running). Waits for
+# health and runs smoke checks against the web entry point.
+redeploy:
+	docker compose -f docker-compose.yml build
+	docker compose -f docker-compose.yml up -d --remove-orphans
+	@echo "Waiting for services to become healthy..."
+	@for i in $$(seq 1 60); do \
+	  bad=$$(docker compose -f docker-compose.yml ps --format '{{.Health}}' | grep -E 'unhealthy|starting' || true); \
+	  [ -z "$$bad" ] && break; \
+	  sleep 2; \
+	done
+	docker compose -f docker-compose.yml ps
+	@echo "Smoke checks:"
+	@curl -sf http://localhost:8081/api/health > /dev/null && echo "  api via web (8081): ok" || echo "  api via web (8081): FAILED"
+	@code=$$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8081/api/auth/login -H 'Content-Type: application/json' -d '{}'); \
+	echo "  auth route responds with $$code"
 
 down:
 	docker compose -f docker-compose.yml down
