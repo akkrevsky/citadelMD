@@ -120,7 +120,11 @@ class ApiClient {
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string> | undefined),
     }
-    if (options.body !== undefined && options.body !== null) {
+    if (
+      options.body !== undefined &&
+      options.body !== null &&
+      !(options.body instanceof FormData)
+    ) {
       headers['Content-Type'] = 'application/json'
     }
     const res = await fetch(`${this.baseUrl}${path}`, {
@@ -305,6 +309,15 @@ class ApiClient {
     return this.request<Document>(`/folders/${folderId}/documents`, {
       method: 'POST',
       body: JSON.stringify({ title, kind }),
+    })
+  }
+
+  importDocument(folderId: string, file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return this.request<Document>(`/folders/${folderId}/import`, {
+      method: 'POST',
+      body: formData,
     })
   }
 

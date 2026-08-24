@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { api, type CurrentUser, type TreeItem } from '../api-client'
+import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
+import { isImportableFile } from '../utils/importFile.js'
 import { formatUpdatedAt } from '../utils/string'
 import {
   hasUnsavedChanges,
@@ -75,6 +77,7 @@ function DashboardWithTabs() {
   const [treeLoading, setTreeLoading] = useState(true)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [sidebarView, setSidebarView] = useState<SidebarView>('folders')
+  const [toasts, setToasts] = useState<ToastData[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem('citadelmd-sidebar-collapsed')
     if (stored !== null) return stored === '1'
@@ -223,6 +226,34 @@ function DashboardWithTabs() {
     closeTab(id)
     await refreshTree()
     if (activeDocId === id) navigate('/')
+  }
+
+  async function handleImportFiles(files: FileList | File[], folderId: string) {
+    for (const file of Array.from(files)) {
+      if (!isImportableFile(file)) {
+        createToast(
+          setToasts,
+          `Only .md and .txt files can be imported as documents (${file.name})`,
+          'error',
+        )
+        continue
+      }
+      try {
+        const doc = await api.importDocument(folderId, file)
+        await refreshTree()
+        pinTab({ id: doc.id, title: doc.title })
+        navigate(`/documents/${doc.id}/edit`, { state: { pin: true } })
+        createToast(setToasts, `Imported ${doc.title}`, 'success')
+      } catch (err) {
+        createToast(
+          setToasts,
+          `Import failed for ${file.name}: ${
+            err instanceof Error ? err.message : 'Unknown error'
+          }`,
+          'error',
+        )
+      }
+    }
   }
 
   async function handleMoveDocument(
@@ -494,7 +525,14 @@ function DashboardWithTabs() {
                 setTreeMenu({ x: e.clientX, y: e.clientY, item })
               }}
               onDragOver={(e) => {
-                if (!dragDocRef.current) return
+                if (!dragDocRef.current) {
+                  if (e.dataTransfer.types.includes('Files')) {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'copy'
+                    setDragOverFolderId(item.id)
+                  }
+                  return
+                }
                 e.preventDefault()
                 e.dataTransfer.dropEffect = 'move'
                 setDragOverFolderId(item.id)
@@ -507,7 +545,11 @@ function DashboardWithTabs() {
                 const drag = dragDocRef.current
                 dragDocRef.current = null
                 setDragOverFolderId(null)
-                if (drag) void handleMoveDocument(drag.id, drag.currentFolderId, item.id)
+                if (drag) {
+                  void handleMoveDocument(drag.id, drag.currentFolderId, item.id)
+                } else if (e.dataTransfer.files.length > 0) {
+                  void handleImportFiles(e.dataTransfer.files, item.id)
+                }
               }}
             >
               <button

@@ -423,4 +423,35 @@ describe('api-client', () => {
       expect(res.diff).toBe('-removed')
     })
   })
+  describe('importDocument', () => {
+    it('sends POST with FormData and no Content-Type header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ id: 'doc-9', title: 'notes', filePath: 'root/notes.md' }),
+      })
+
+      await api.importDocument('folder-1', new File(['# Hi'], 'notes.md', { type: 'text/markdown' }))
+
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/folders/folder-1/import')
+      expect(options.method).toBe('POST')
+      expect(options.body).toBeInstanceOf(FormData)
+      const headers = options.headers as Record<string, string> | undefined
+      expect(headers?.['Content-Type']).toBeUndefined()
+    })
+
+    it('throws the server message on conflict', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ error: { code: 'DOCUMENT_EXISTS', message: 'Document already exists' } }),
+      })
+
+      await expect(
+        api.importDocument('folder-1', new File(['# Hi'], 'notes.md')),
+      ).rejects.toThrow('Document already exists')
+    })
+  })
+
 })
