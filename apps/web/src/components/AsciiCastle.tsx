@@ -47,18 +47,24 @@ for (let i = 0; i < TOWERS.length; i++) {
 export function AsciiCastle() {
   const screenRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
 
   // Scale the fixed-size frame down to fit narrow screens (mobile).
+  // The black box resizes with the art so the background follows it.
   useEffect(() => {
     const screen = screenRef.current
     const wrap = wrapRef.current
-    if (!screen || !wrap) return
+    const box = boxRef.current
+    if (!screen || !wrap || !box) return
 
     function fit() {
-      const scale = Math.min(1, wrap!.clientWidth / screen!.scrollWidth)
+      const naturalW = screen!.scrollWidth
+      const naturalH = screen!.scrollHeight
+      const scale = Math.min(1, wrap!.clientWidth / naturalW)
+      box!.style.width = `${naturalW * scale}px`
+      box!.style.height = `${naturalH * scale}px`
       screen!.style.transform = `scale(${scale})`
       screen!.style.transformOrigin = 'top left'
-      wrap!.style.height = `${screen!.scrollHeight * scale}px`
     }
 
     fit()
@@ -293,7 +299,9 @@ export function AsciiCastle() {
 
   return (
     <div ref={wrapRef} className="ascii-castle-wrap">
-      <div ref={screenRef} className="ascii-castle" aria-hidden="true" />
+      <div ref={boxRef} className="ascii-castle-box">
+        <div ref={screenRef} className="ascii-castle" aria-hidden="true" />
+      </div>
     </div>
   )
 }

@@ -1215,7 +1215,8 @@ select:focus {
   border-radius: var(--radius-sm);
   padding: 2px 4px;
   font-family: inherit;
-  width: 100%;
+  flex: 0 1 auto;
+  width: auto;
   max-width: 400px;
   min-width: 0;
   outline: none;
@@ -1232,6 +1233,7 @@ select:focus {
 }
 
 .document-path {
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 0.75rem;
   color: var(--color-text-muted);
@@ -1687,16 +1689,20 @@ select:focus {
   justify-content: center;
 }
 
-.ascii-castle {
+.ascii-castle-box {
   background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ascii-castle {
   color: #d2691e;
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 10px;
   white-space: pre;
   padding: 0.5rem;
-  border-radius: var(--radius);
-  overflow: hidden;
   flex-shrink: 0;
 }
 
