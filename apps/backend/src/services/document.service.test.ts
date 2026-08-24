@@ -732,6 +732,87 @@ describe('DocumentService', () => {
     })
   })
 
+  describe('moveDocument', () => {
+    it('moves the file to the target folder and updates filePath', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Move Me',
+        createdById: testUserId,
+      })
+      const oldPath = path.join(testRepoPath, created.filePath)
+
+      const moved = await documentService.moveDocument(created.id, testSnapshotFolderId, testUserId)
+
+      expect(moved.folderId).toBe(testSnapshotFolderId)
+      expect(moved.filePath).toBe('snapshot-folder/move-me.md')
+      // Old file gone, new file exists on disk
+      await expect(fs.access(oldPath)).rejects.toThrow()
+      await expect(fs.access(path.join(testRepoPath, moved.filePath))).resolves.toBeUndefined()
+    })
+
+    it('removes a stale untracked file at the destination instead of failing', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Stale Destination',
+        createdById: testUserId,
+      })
+
+      // Simulate a yjs auto-save artifact left at the old location by a
+      // previous move: an untracked file sitting at the destination.
+      const stalePath = path.join(testRepoPath, 'snapshot-folder', 'stale-destination.md')
+      await fs.writeFile(stalePath, 'stale leftover')
+
+      const moved = await documentService.moveDocument(created.id, testSnapshotFolderId, testUserId)
+
+      expect(moved.filePath).toBe('snapshot-folder/stale-destination.md')
+      const content = await fs.readFile(path.join(testRepoPath, moved.filePath), 'utf8')
+      expect(content).not.toBe('stale leftover')
+    })
+
+    it('rejects with 409 when a tracked file already exists at the destination', async () => {
+      // Doc in test-folder committed to git
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Tracked Collision',
+        createdById: testUserId,
+      })
+
+      // A second tracked file at the same destination path (another doc's
+      // file committed to the target folder)
+      const colliding = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Tracked Collision Clone',
+        createdById: testUserId,
+      })
+      // Move the clone to the snapshot folder... snapshot files are untracked,
+      // so simulate a tracked destination by committing the clone's file in
+      // the target folder through the git service directly.
+      const git = new GitService(testRepoPath)
+      const clonePath = path.join(testRepoPath, colliding.filePath)
+      const destPath = path.join(testRepoPath, 'snapshot-folder', 'tracked-collision.md')
+      await fs.copyFile(clonePath, destPath)
+      await git.commit('Tracked destination setup', { name: 'Test User', email: 'test@example.com' }, [
+        'snapshot-folder/tracked-collision.md',
+      ])
+
+      await expect(
+        documentService.moveDocument(created.id, testSnapshotFolderId, testUserId),
+      ).rejects.toMatchObject({ statusCode: 409 })
+    })
+
+    it('does nothing when the document is already in the target folder', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'No-op Move',
+        createdById: testUserId,
+      })
+
+      const moved = await documentService.moveDocument(created.id, testFolderId, testUserId)
+
+      expect(moved.filePath).toBe(created.filePath)
+    })
+  })
+
   describe('concurrency and locking', () => {
     it('should handle concurrent operations safely with Redis locking', async () => {
       const created = await documentService.createDocument({

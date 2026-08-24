@@ -3,13 +3,14 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import type { UserRole } from '@citadelmd/shared'
 import { assertFolderPermission } from '../services/authz.js'
 
-// Mock the document service 
+// Mock the document service
 const mockDocumentService = {
   createDocument: vi.fn(),
   getDocument: vi.fn(),
   getDocumentContent: vi.fn(),
   updateDocument: vi.fn(),
   deleteDocument: vi.fn(),
+  moveDocument: vi.fn(),
   commitChanges: vi.fn(),
   commitDocument: vi.fn(),
   discardChanges: vi.fn(),
@@ -373,6 +374,77 @@ describe('Document Routes', () => {
       })
 
       expect(response.statusCode).toBe(204)
+    })
+  })
+
+  describe('POST /api/documents/:id/move', () => {
+    it('moves the document and returns the updated document', async () => {
+      const moved = {
+        id: 'doc-123',
+        folderId: 'folder-2',
+        title: 'Test Document',
+        filePath: 'other/test-document.md',
+      }
+      mockDocumentService.moveDocument.mockResolvedValue(moved)
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/move',
+        headers: { authorization: 'Bearer test-token' },
+        payload: { folderId: 'folder-2' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(mockDocumentService.moveDocument).toHaveBeenCalledWith(
+        'doc-123',
+        'folder-2',
+        'user-123',
+      )
+      expect(JSON.parse(response.body)).toEqual(moved)
+    })
+
+    it('returns 400 when folderId is missing', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/move',
+        headers: { authorization: 'Bearer test-token' },
+        payload: {},
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(mockDocumentService.moveDocument).not.toHaveBeenCalled()
+    })
+
+    it('maps a 409 from the service to DOCUMENT_EXISTS', async () => {
+      mockDocumentService.moveDocument.mockRejectedValue(
+        Object.assign(new Error('Document with this title already exists in the folder'), {
+          statusCode: 409,
+        }),
+      )
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/move',
+        headers: { authorization: 'Bearer test-token' },
+        payload: { folderId: 'folder-2' },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(JSON.parse(response.body).error.code).toBe('DOCUMENT_EXISTS')
+    })
+
+    it('maps unexpected errors to 500 DOCUMENT_MOVE_ERROR', async () => {
+      mockDocumentService.moveDocument.mockRejectedValue(new Error('fatal: destination exists'))
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/documents/doc-123/move',
+        headers: { authorization: 'Bearer test-token' },
+        payload: { folderId: 'folder-2' },
+      })
+
+      expect(response.statusCode).toBe(500)
+      expect(JSON.parse(response.body).error.code).toBe('DOCUMENT_MOVE_ERROR')
     })
   })
 

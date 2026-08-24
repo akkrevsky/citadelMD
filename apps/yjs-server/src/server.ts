@@ -31,17 +31,17 @@ export async function buildServer(): Promise<FastifyInstance> {
     }
   })
 
-  // Internal endpoint: reload document from file  
+  // Internal endpoint: reload document from file
   app.post('/internal/reload', async (request, reply) => {
-    const { docid } = request.query as { docid: string }
-    
+    const { docid, filepath } = request.query as { docid: string; filepath?: string }
+
     if (!docid) {
       reply.code(400)
       return { error: 'Missing docid parameter' }
     }
-    
+
     try {
-      yjsWS.getYjsManager().reloadDocument(docid)
+      yjsWS.getYjsManager().reloadDocument(docid, filepath)
       return { status: 'reloaded', docid }
     } catch (error) {
       reply.code(404)

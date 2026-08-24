@@ -523,8 +523,39 @@ export class DocumentService {
     const fileName = path.basename(document.filePath)
     const newFilePath = targetFolder.gitPath ? `${targetFolder.gitPath}/${fileName}` : fileName
 
+    // Write any pending Yjs edits to the old path so the move carries them
+    await this.tryFlushYjsDocument(id)
+
     return withFileLock(document.filePath, async () => {
+      const repoPath = this.getGitRepoPath()
+      const destination = path.join(repoPath, newFilePath)
+
+      // A file may already sit at the destination: either a real collision
+      // (tracked file of another document) or a stale yjs auto-save artifact
+      // left behind by an earlier move. Only the tracked case is a conflict.
+      let destExists = false
+      try {
+        destExists = (await fs.stat(destination)).isFile()
+      } catch {
+        // destination does not exist — nothing to do
+      }
+      if (destExists) {
+        const tracked = await this.git.isPathTracked(newFilePath)
+        if (tracked) {
+          throw Object.assign(
+            new Error('A file with this name already exists in the target folder'),
+            { statusCode: 409 },
+          )
+        }
+        await fs.rm(destination, { force: true })
+        await fs.rm(`${destination}.ydoc`, { force: true })
+      }
+
       await this.git.move(document.filePath, newFilePath)
+
+      // The sidecar follows the Yjs session; drop the old one so auto-save
+      // cannot recreate the file at the old path (reload regenerates it).
+      await fs.rm(path.join(repoPath, `${document.filePath}.ydoc`), { force: true })
 
       const result = await this.git.commit(
         `Move document ${document.title} [user:${user.login}]`,
@@ -543,6 +574,9 @@ export class DocumentService {
           filePath: newFilePath,
         },
       })
+
+      // Point a live Yjs session at the new path
+      await this.tryReloadYjsDocument(id, newFilePath)
 
       return {
         ...updated,
@@ -706,9 +740,9 @@ export class DocumentService {
     }
   }
 
-  private async tryReloadYjsDocument(documentId: string): Promise<void> {
+  private async tryReloadYjsDocument(documentId: string, filePath?: string): Promise<void> {
     try {
-      await this.reloadYjsDocument(documentId)
+      await this.reloadYjsDocument(documentId, filePath)
     } catch {
       // No live Yjs session to reload
     }
@@ -731,9 +765,10 @@ export class DocumentService {
   /**
    * Reload Yjs document from file
    */
-  private async reloadYjsDocument(docId: string): Promise<void> {
+  private async reloadYjsDocument(docId: string, filePath?: string): Promise<void> {
     const yjsDocId = toYjsDocId(docId)
-    const response = await fetch(`${this.yjsServerUrl}/internal/reload?docid=${encodeURIComponent(yjsDocId)}`, {
+    const pathParam = filePath ? `&filepath=${encodeURIComponent(filePath)}` : ''
+    const response = await fetch(`${this.yjsServerUrl}/internal/reload?docid=${encodeURIComponent(yjsDocId)}${pathParam}`, {
       method: 'POST'
     })
     if (!response.ok) {

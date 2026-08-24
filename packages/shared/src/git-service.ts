@@ -172,6 +172,16 @@ export class GitService {
     await this.git.mv(oldPath, newPath)
   }
 
+  /** Whether a path is tracked in git (committed or staged), regardless of its working-tree state */
+  async isPathTracked(relativePath: string): Promise<boolean> {
+    try {
+      await this.git.raw(['ls-files', '--error-unmatch', '--', relativePath])
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async remove(filePath: string): Promise<void> {
     await this.git.rm([filePath, '-r'])
   }

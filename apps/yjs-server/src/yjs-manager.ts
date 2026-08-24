@@ -1,5 +1,5 @@
 import * as Y from 'yjs'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, rmSync } from 'fs'
 import { dirname } from 'path'
 import { mkdirSync } from 'fs'
 import fastDiff from 'fast-diff'
@@ -254,11 +254,21 @@ export class YjsManager {
     session.lastSave = Date.now()
   }
 
-  // Reload document from file (called by /internal/reload)
-  reloadDocument(docId: string): void {
+  // Reload document from file (called by /internal/reload). When filePath is
+  // given (document moved), the session switches to the new path so later
+  // auto-saves do not recreate the file at the old location.
+  reloadDocument(docId: string, filePath?: string): void {
     const session = this.documents.get(docId)
     if (!session) {
       throw new Error(`Document ${docId} not found`)
+    }
+
+    if (filePath && filePath !== session.filePath) {
+      const oldSidecar = this.sidecarPath(session.filePath)
+      if (existsSync(oldSidecar)) {
+        rmSync(oldSidecar, { force: true })
+      }
+      session.filePath = filePath
     }
 
     const fullPath = `${this.gitRepoPath}/${session.filePath}`
