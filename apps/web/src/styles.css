@@ -1184,6 +1184,13 @@ select:focus {
   cursor: not-allowed;
 }
 
+.document-actions button svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
 .document-actions button:not(.commit-section button):not(.discard-button) {
   padding: 0.35rem 0.75rem;
   background: var(--color-btn-default);

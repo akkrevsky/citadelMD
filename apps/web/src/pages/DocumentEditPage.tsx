@@ -8,6 +8,7 @@ import { UploadIndicator } from '../components/UploadIndicator.js'
 import { ShareDialog } from '../components/ShareDialog.js'
 import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
 import { ConfirmModal } from '../components/ConfirmModal.js'
+import { IconSave, IconCommit, IconDiscard, IconShare, IconHistory, IconDashboard } from '../components/icons.js'
 import { RevisionTree } from '../components/RevisionTree.js'
 import { ExcalidrawEditPage } from './ExcalidrawEditPage.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
@@ -448,7 +449,7 @@ export function DocumentEditPage() {
             title="Сохранить документ"
             className="btn btn-sm btn-primary"
           >
-            {isCommitting ? 'Saving...' : 'Save'}
+            {isCommitting ? 'Saving...' : (<><IconSave /> Save</>)}
           </button>
 
           {usesGit && (
@@ -464,7 +465,7 @@ export function DocumentEditPage() {
                 onClick={handleCommit}
                 disabled={!commitMessage.trim() || isCommitting}
               >
-                {isCommitting ? 'Committing...' : 'Commit'}
+                {isCommitting ? 'Committing...' : (<><IconCommit /> Commit</>)}
               </button>
             </div>
           )}
@@ -475,12 +476,12 @@ export function DocumentEditPage() {
               disabled={isDiscarding || !hasChanges}
               className="discard-button"
             >
-              {isDiscarding ? 'Discarding...' : 'Discard'}
+              {isDiscarding ? 'Discarding...' : (<><IconDiscard /> Discard</>)}
             </button>
           )}
 
           <button onClick={() => setShowShareDialog(true)}>
-            Share
+            <IconShare /> Share
           </button>
           {usesGit && (
             <button
@@ -493,11 +494,11 @@ export function DocumentEditPage() {
                 })
               }}
             >
-              {showHistory ? 'Скрыть историю' : 'История'}
+              {showHistory ? (<><IconHistory /> Скрыть историю</>) : (<><IconHistory /> История</>)}
             </button>
           )}
           <button onClick={() => navigate('/')}>
-            Dashboard
+            <IconDashboard /> Dashboard
           </button>
         </div>
       </div>

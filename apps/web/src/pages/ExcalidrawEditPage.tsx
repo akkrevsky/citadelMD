@@ -4,6 +4,7 @@ import { api, type Document } from '../api-client.js'
 import { RevisionTree } from '../components/RevisionTree.js'
 import { ShareDialog } from '../components/ShareDialog.js'
 import { ConfirmModal } from '../components/ConfirmModal.js'
+import { IconSave, IconCommit, IconDiscard, IconShare, IconHistory, IconDashboard } from '../components/icons.js'
 import { ToastContainer, createToast, type ToastData } from '../components/Toast.js'
 import { StatusBar } from '../components/StatusBar.js'
 import { useTheme } from '../hooks/useTheme'
@@ -311,7 +312,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                 title="Сохранить диаграмму"
                 className="btn btn-sm btn-primary"
               >
-                {isSaving ? 'Saving...' : 'Save'}
+                {isSaving ? 'Saving...' : (<><IconSave /> Save</>)}
               </button>
 
               {usesGit && (
@@ -327,7 +328,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                     onClick={handleCommit}
                     disabled={!commitMessage.trim() || isCommitting}
                   >
-                    {isCommitting ? 'Committing...' : 'Commit'}
+                    {isCommitting ? 'Committing...' : (<><IconCommit /> Commit</>)}
                   </button>
                 </div>
               )}
@@ -338,11 +339,11 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                   disabled={isDiscarding || !hasChanges}
                   className="discard-button"
                 >
-                  {isDiscarding ? 'Discarding...' : 'Discard'}
+                  {isDiscarding ? 'Discarding...' : (<><IconDiscard /> Discard</>)}
                 </button>
               )}
 
-              <button onClick={() => setShowShareDialog(true)}>Share</button>
+              <button onClick={() => setShowShareDialog(true)}><IconShare /> Share</button>
 
               {usesGit && (
                 <button
@@ -355,11 +356,11 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                     })
                   }}
                 >
-                  {showHistory ? 'Скрыть историю' : 'История'}
+                  {showHistory ? (<><IconHistory /> Скрыть историю</>) : (<><IconHistory /> История</>)}
                 </button>
               )}
 
-              <button onClick={() => navigate('/')}>Dashboard</button>
+              <button onClick={() => navigate('/')}><IconDashboard /> Dashboard</button>
             </div>
           </div>
 
