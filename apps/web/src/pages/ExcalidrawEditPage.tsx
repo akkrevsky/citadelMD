@@ -234,6 +234,10 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   }
 
   const confirmDiscard = async () => {
+    // Closing the confirm modal resizes the canvas, which makes Excalidraw
+    // fire a change with the still-edited scene before loadScene can arm the
+    // suppression — arm it first so the discard actually sticks.
+    suppressSceneChanges()
     setShowDiscardConfirm(false)
     try {
       setIsDiscarding(true)
