@@ -118,6 +118,10 @@ describe('normalizeScene — opening an unedited diagram must never look dirty',
         groupIds: [],
         frameId: null,
         seed: 999,
+        // Excalidraw fills these defaults on restore when absent in the file
+        isDeleted: false,
+        link: null,
+        locked: false,
       },
     ])
     expect(normalizeScene(reloaded)).toBe(normalizeScene(saved))

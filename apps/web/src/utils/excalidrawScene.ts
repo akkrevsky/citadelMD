@@ -1,13 +1,32 @@
 import type { ExcalidrawSceneData } from '../components/ExcalidrawEditor.js'
 
 /**
- * Excalidraw rewrites several element fields when it loads a scene:
- * null collections become [], and the collaboration/layout metadata
- * (version, versionNonce, updated, index, seed) is regenerated on restore.
- * Canonicalize them so that merely opening a document never counts as a
- * user change. Z-order edits are still detected via element array order.
+ * Excalidraw rewrites elements when it loads a scene: null collections
+ * become [], missing fields get defaults filled in (isDeleted/link/locked
+ * ...), and the collaboration/layout metadata (version, versionNonce,
+ * updated, index, seed) is regenerated on restore. Canonicalize both
+ * directions so that merely opening a document never counts as a user
+ * change. Z-order edits are still detected via element array order.
  */
 const VOLATILE_ELEMENT_FIELDS = ['version', 'versionNonce', 'updated', 'index', 'seed']
+
+const ELEMENT_DEFAULTS: Record<string, unknown> = {
+  isDeleted: false,
+  opacity: 100,
+  link: null,
+  locked: false,
+  groupIds: [],
+  boundElements: [],
+  frameId: null,
+  strokeColor: '#1e1e1e',
+  backgroundColor: 'transparent',
+  fillStyle: 'solid',
+  strokeWidth: 1,
+  strokeStyle: 'solid',
+  roughness: 1,
+  angle: 0,
+  roundness: { type: 3 },
+}
 
 function canonicalElement(el: unknown): unknown {
   if (!el || typeof el !== 'object') return el
@@ -17,8 +36,18 @@ function canonicalElement(el: unknown): unknown {
     if (VOLATILE_ELEMENT_FIELDS.includes(key)) continue
     out[key] = value
   }
-  for (const collectionKey of ['boundElements', 'groupIds']) {
-    if (out[collectionKey] === null) out[collectionKey] = []
+  // Fill defaults for missing fields and normalize null collections, so a
+  // scene saved before Excalidraw added a field equals the same scene after
+  // Excalidraw filled the default on load.
+  for (const [key, defaultValue] of Object.entries(ELEMENT_DEFAULTS)) {
+    if (!(key in out)) {
+      out[key] = defaultValue
+    } else if (
+      out[key] === null &&
+      (key === 'groupIds' || key === 'boundElements' || key === 'link' || key === 'frameId')
+    ) {
+      out[key] = defaultValue
+    }
   }
   return out
 }
