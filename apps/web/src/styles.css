@@ -1681,9 +1681,15 @@ select:focus {
     white-space: nowrap;
   }
 
-  /* The commit-message input eats a full row — collapse it on mobile */
+  /* Compact commit section so the Commit action stays reachable */
   .commit-section {
-    display: none;
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .commit-section input {
+    width: 110px;
+    min-width: 0;
   }
 
   .changes-indicator {
