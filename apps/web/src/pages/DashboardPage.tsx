@@ -361,17 +361,18 @@ function DashboardWithTabs() {
             }}
           >
             <span className="tree-chevron-spacer" aria-hidden="true" />
-            <IconFile className="tree-icon file" />
+            {item.kind === 'EXCALIDRAW' ? (
+              <img
+                className="doc-kind-icon"
+                src={excalidrawLogo}
+                alt="Diagram"
+                title="Diagram"
+              />
+            ) : (
+              <IconFile className="tree-icon file" />
+            )}
             <span className="tree-row-label">
               {unsaved && <span className="doc-state-marker">*</span>}
-              {item.kind === 'EXCALIDRAW' && (
-                <img
-                  className="doc-kind-icon"
-                  src={excalidrawLogo}
-                  alt="Diagram"
-                  title="Diagram"
-                />
-              )}
               {item.name}
             </span>
             {item.updatedAt && (
