@@ -63,6 +63,15 @@ function ExcalidrawEditor({ initialData, onChange, onSettled, theme = 'light' }:
     }
   }, [])
 
+  // Close the gate on unmount: Excalidraw fires a final change event while
+  // tearing down, which must not re-mark the document dirty (e.g. after
+  // discard reloaded the scene).
+  useEffect(() => {
+    return () => {
+      readyRef.current = false
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     import('@excalidraw/excalidraw')
