@@ -24,7 +24,10 @@ import {
   loadSceneDraft,
   clearSceneDraft,
 } from '../utils/excalidrawScene.js'
-import type { ExcalidrawSceneData } from '../components/ExcalidrawEditor.js'
+import {
+  suppressSceneChanges,
+  type ExcalidrawSceneData,
+} from '../components/ExcalidrawEditor.js'
 
 const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
 
@@ -56,6 +59,18 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   const baselineRef = useRef('')
   const loadedKey = useRef(0)
   const restoredDraftRef = useRef(false)
+  const prevDocIdRef = useRef(documentId)
+
+  // The old editor instance fires a teardown change when the document
+  // switches (render runs before the old instance unmounts) or the page
+  // unmounts — suppress those so they never re-mark the document dirty.
+  if (prevDocIdRef.current !== documentId) {
+    prevDocIdRef.current = documentId
+    suppressSceneChanges()
+  }
+  useEffect(() => {
+    return () => suppressSceneChanges()
+  }, [])
 
   const usesGit = doc.folderMode !== 'SNAPSHOT'
 
@@ -98,6 +113,9 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
       restoredDraftRef.current = restored
       sceneRef.current = draft ?? parsed
       setScene(draft ?? parsed)
+      // The current editor instance will unmount when loadedKey changes and
+      // fires a teardown change — suppress it before the remount.
+      suppressSceneChanges()
       loadedKey.current += 1
       if (docMeta) {
         setDoc(docMeta)

@@ -13,6 +13,15 @@ export interface ExcalidrawSceneData {
   files?: Record<string, unknown>
 }
 
+// Excalidraw fires a change event while tearing down an editor instance
+// (scene reload or navigation). The parent arms this suppression BEFORE the
+// old instance unmounts — unmount cleanups run too late to catch it.
+let suppressSceneChangesUntil = 0
+
+export function suppressSceneChanges(ms = 1500): void {
+  suppressSceneChangesUntil = Date.now() + ms
+}
+
 interface ExcalidrawEditorProps {
   initialData?: ExcalidrawSceneData | null
   onChange?: (scene: ExcalidrawSceneData) => void
@@ -92,6 +101,7 @@ function ExcalidrawEditor({ initialData, onChange, onSettled, theme = 'light' }:
 
   const handleChange = useCallback((elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => {
     if (!readyRef.current) return
+    if (Date.now() < suppressSceneChangesUntil) return
     onChangeRef.current?.({
       type: 'excalidraw',
       version: 2,
