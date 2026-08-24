@@ -826,7 +826,11 @@ select:focus {
 }
 
 .document-updated-at {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .folder-settings-dialog {
@@ -1158,6 +1162,13 @@ select:focus {
   min-width: 0;
 }
 
+.document-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .document-info h1 {
   font-size: 1rem;
   font-weight: 600;
@@ -1177,6 +1188,7 @@ select:focus {
   font-family: inherit;
   width: 100%;
   max-width: 400px;
+  min-width: 0;
   outline: none;
   transition: border-color 0.15s;
 }

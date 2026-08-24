@@ -284,22 +284,24 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
         <div className="document-body">
           <div className="document-header">
             <div className="document-info">
-              <input
-                className="document-title-input"
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                onBlur={handleTitleBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                }}
-                placeholder="Diagram title"
-                title={fullTitlePath}
-              />
+              <div className="document-title-row">
+                <input
+                  className="document-title-input"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onBlur={handleTitleBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  }}
+                  placeholder="Diagram title"
+                  title={fullTitlePath}
+                />
+                {doc.updatedAt && (
+                  <span className="document-updated-at">{formatUpdatedAt(doc.updatedAt)}</span>
+                )}
+              </div>
               <span className="document-path" title={fullTitlePath}>
                 {truncate(doc.title, 25)}
-                {doc.updatedAt && (
-                  <span className="document-updated-at"> · {formatUpdatedAt(doc.updatedAt)}</span>
-                )}
               </span>
             </div>
           </div>
