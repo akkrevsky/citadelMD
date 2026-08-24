@@ -184,7 +184,17 @@ export function DocumentEditPage() {
 
     } catch (error) {
       console.error('Failed to load document:', error)
-      setError('Failed to load document')
+      const message = error instanceof Error ? error.message : ''
+      if (message.includes('Document not found')) {
+        // The document was deleted (or never existed) — stop auto-resume
+        // from bringing users back to a dead URL.
+        if (localStorage.getItem(LAST_DOC_KEY) === id) {
+          localStorage.removeItem(LAST_DOC_KEY)
+        }
+        setError('Document not found')
+      } else {
+        setError('Failed to load document')
+      }
     } finally {
       setLoading(false)
     }
