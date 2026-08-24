@@ -1647,6 +1647,28 @@ select:focus {
 }
 
 
+/* Drag-and-drop upload overlay on the edit page */
+.document-edit-page {
+  position: relative;
+}
+
+.drop-zone-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+  border: 2px dashed var(--color-primary);
+  margin: 8px;
+  border-radius: var(--radius-lg);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  pointer-events: none;
+}
+
 /* ---- Share Dialog ---- */
 
 .share-overlay {

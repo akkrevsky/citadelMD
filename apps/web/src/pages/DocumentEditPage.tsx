@@ -53,6 +53,7 @@ export function DocumentEditPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [mobileToolbarOpen, setMobileToolbarOpen] = useState(false)
   const [historyTick, setHistoryTick] = useState(0)
+  const [isDragOver, setIsDragOver] = useState(false)
   const [wordWrap, setWordWrap] = useState(() => {
     try {
       return localStorage.getItem('citadelmd-word-wrap') === '1'
@@ -93,6 +94,14 @@ export function DocumentEditPage() {
     documentId: id!,
     onInsert: handleInsertAtCursor,
   })
+
+  const handleEditorFiles = useCallback(
+    (files: File[]) => {
+      for (const file of files) void uploadFile(file)
+    },
+    [uploadFile],
+  )
+
 
   // Rich HTML paste: convert formatting to markdown and upload embedded
   // (data-URI) images so they become regular document attachments.
@@ -591,6 +600,7 @@ export function DocumentEditPage() {
               onScrollRatio={setScrollRatio}
               lineWrapping={wordWrap}
               onHtmlPaste={handleHtmlPaste}
+              onFileDrop={handleEditorFiles}
             />
           </div>
 
@@ -630,9 +640,23 @@ export function DocumentEditPage() {
     <div
       className="document-edit-page"
       onPaste={handlePaste as unknown as React.ClipboardEventHandler}
-      onDrop={handleDrop as unknown as React.DragEventHandler}
+      onDrop={(e) => {
+        setIsDragOver(false)
+        handleDrop(e as unknown as DragEvent)
+      }}
       onDragOver={handleDragOver as unknown as React.DragEventHandler}
+      onDragEnter={(e) => {
+        if (e.dataTransfer.types.includes('Files')) setIsDragOver(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false)
+      }}
     >
+      {isDragOver && (
+        <div className="drop-zone-overlay" aria-hidden="true">
+          Drop to upload and insert at cursor
+        </div>
+      )}
       <div className={`document-main-row${showHistory ? ' history-open' : ''}`}>
         <div className="document-body">{body}</div>
 

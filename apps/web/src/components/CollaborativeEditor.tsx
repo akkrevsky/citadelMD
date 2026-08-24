@@ -146,6 +146,7 @@ interface CollaborativeEditorProps {
   onScrollRatio?: (ratio: number) => void
   lineWrapping?: boolean
   onHtmlPaste?: (html: string) => Promise<string>
+  onFileDrop?: (files: File[]) => void
 }
 
 export function CollaborativeEditor({
@@ -160,6 +161,7 @@ export function CollaborativeEditor({
   onScrollRatio,
   lineWrapping = false,
   onHtmlPaste,
+  onFileDrop,
 }: CollaborativeEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -282,7 +284,27 @@ export function CollaborativeEditor({
       EditorState.readOnly.of(readOnly),
       wrapCompartmentRef.current.of(lineWrapping ? EditorView.lineWrapping : []),
       EditorView.domEventHandlers({
+        drop: (event) => {
+          // File drop inside the editor: hand the files to the page for
+          // upload instead of letting CodeMirror insert raw file text.
+          const files = Array.from(event.dataTransfer?.files ?? [])
+          if (files.length === 0 || !onFileDrop) return false
+          event.preventDefault()
+          event.stopPropagation()
+          onFileDrop(files)
+          return true
+        },
         paste: (event, view) => {
+          // Pasted files (e.g. a copied image) — same upload path as drop.
+          const files = Array.from(event.clipboardData?.files ?? [])
+          if (files.length > 0) {
+            if (!onFileDrop) return false
+            event.preventDefault()
+            event.stopPropagation()
+            onFileDrop(files)
+            return true
+          }
+
           // Rich HTML paste: convert to markdown (images get uploaded by
           // the page via onHtmlPaste) instead of dropping formatting.
           if (!onHtmlPaste) return false
@@ -412,7 +434,7 @@ export function CollaborativeEditor({
       provider.destroy()
       view.destroy()
     }
-  }, [documentId, initialContent, readOnly, shareToken, onContentChange, onCursorChange, onDocStats, resetTick])
+  }, [documentId, initialContent, readOnly, shareToken, onContentChange, onCursorChange, onDocStats, resetTick, onFileDrop])
 
   // Toggle line wrapping without recreating the editor (which would
   // tear down the Yjs provider).
