@@ -16,7 +16,13 @@ import {
 } from '../utils/unsaved.js'
 import { truncate, formatUpdatedAt } from '../utils/string.js'
 import { isModShortcut } from '../utils/keyboard.js'
-import { normalizeScene, serializeSceneForSave } from '../utils/excalidrawScene.js'
+import {
+  normalizeScene,
+  serializeSceneForSave,
+  saveSceneDraft,
+  loadSceneDraft,
+  clearSceneDraft,
+} from '../utils/excalidrawScene.js'
 import type { ExcalidrawSceneData } from '../components/ExcalidrawEditor.js'
 
 const ExcalidrawEditor = React.lazy(() => import('../components/ExcalidrawEditor.js'))
@@ -83,15 +89,17 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
           files: {},
         }
       }
-      sceneRef.current = parsed
-      baselineRef.current = normalizeScene(parsed)
-      setScene(parsed)
+      const baseline = normalizeScene(parsed)
+      baselineRef.current = baseline
+      const draft = loadSceneDraft(documentId)
+      const restored = draft ? normalizeScene(draft) !== baseline : false
+      sceneRef.current = draft ?? parsed
+      setScene(draft ?? parsed)
       loadedKey.current += 1
       if (docMeta) {
         setDoc(docMeta)
       }
-      const dirty = docMeta?.hasUncommittedChanges ?? false
-      applyDirtyState(dirty)
+      applyDirtyState(restored || (docMeta?.hasUncommittedChanges ?? false))
     } catch (err) {
       console.error('Failed to load diagram:', err)
       setError('Failed to load diagram')
@@ -115,6 +123,11 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
       sceneRef.current = next
       const changed = normalizeScene(next) !== baselineRef.current
       applyDirtyState(changed)
+      if (changed) {
+        saveSceneDraft(documentId, next)
+      } else {
+        clearSceneDraft(documentId)
+      }
     },
     [documentId],
   )
@@ -130,6 +143,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
         await api.putDocumentContent(documentId, content)
       }
       baselineRef.current = normalizeScene(sceneRef.current)
+      clearSceneDraft(documentId)
       applyDirtyState(false)
       setHistoryTick((t) => t + 1)
       const refreshed = await api.getDocument(documentId)
@@ -159,6 +173,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
       if (sceneRef.current) {
         baselineRef.current = normalizeScene(sceneRef.current)
       }
+      clearSceneDraft(documentId)
       applyDirtyState(false)
       setHistoryTick((t) => t + 1)
       const refreshed = await api.getDocument(documentId)
@@ -182,6 +197,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
     try {
       setIsDiscarding(true)
       await api.discardDocument(documentId)
+      clearSceneDraft(documentId)
       applyDirtyState(false)
       setHistoryTick((t) => t + 1)
       createToast(setToasts, 'Changes discarded', 'info')
