@@ -404,7 +404,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
               </button>
             )}
 
-            <button onClick={() => navigate('/')}>
+            <button onClick={() => navigate('/', { state: { home: true } })}>
               <IconDashboard /> Dashboard
             </button>
           </div>

@@ -404,6 +404,9 @@ function DashboardWithTabs() {
   useEffect(() => {
     if (!user || treeLoading) return
     if (location.pathname !== '/') return
+    // Explicit Dashboard click (state.home) means "show the home screen",
+    // not "resume the last document".
+    if ((location.state as { home?: boolean } | null)?.home) return
 
     const docIds = collectDocumentIds(tree)
     if (docIds.size === 0) return

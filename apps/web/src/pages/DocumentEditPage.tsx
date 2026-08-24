@@ -508,7 +508,7 @@ export function DocumentEditPage() {
               {showHistory ? (<><IconHistory /> Скрыть историю</>) : (<><IconHistory /> История</>)}
             </button>
           )}
-          <button onClick={() => navigate('/')}>
+          <button onClick={() => navigate('/', { state: { home: true } })}>
             <IconDashboard /> Dashboard
           </button>
         </div>
