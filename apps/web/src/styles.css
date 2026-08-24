@@ -632,6 +632,29 @@ select:focus {
   text-overflow: ellipsis;
 }
 
+.tree-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text);
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  outline: none;
+  user-select: text;
+}
+
+.tree-row.folder .tree-rename-input {
+  font-weight: 600;
+}
+
+.tree-rename-input:focus {
+  box-shadow: 0 0 0 2px var(--color-primary-bg);
+}
+
 .tree-row.folder .tree-row-label {
   font-weight: 600;
 }

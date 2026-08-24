@@ -13,7 +13,13 @@ import { AssetsPanel } from '../components/AssetsPanel'
 import { TabContextMenu } from '../components/TabContextMenu'
 import { MoveDocumentDialog } from '../components/MoveDocumentDialog'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { findFirstDocument, collectDocumentIds, findFirstFolder } from '../utils/tree'
+import { TreeContextMenu, type TreeMenuItem } from '../components/TreeContextMenu'
+import {
+  findFirstDocument,
+  collectDocumentIds,
+  findFirstFolder,
+  collectSubtreeDocumentIds,
+} from '../utils/tree'
 import { IconChevronRight, IconFolder, IconFile } from '../components/icons'
 import logo from '../assets/logo.png'
 import excalidrawLogo from '../assets/excalidraw-logo.png'
@@ -100,6 +106,15 @@ function DashboardWithTabs() {
   const [navScrolling, setNavScrolling] = useState(false)
   const navScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selectedFolderRowRef = useRef<HTMLDivElement | null>(null)
+  const [treeMenu, setTreeMenu] = useState<{ x: number; y: number; item: TreeItem } | null>(null)
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
+  const cancelRenameRef = useRef(false)
+  const [moveDoc, setMoveDoc] = useState<{ id: string; title: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string
+    title: string
+    kind: 'folder' | 'document'
+  } | null>(null)
 
   const {
     openPreview,
@@ -139,6 +154,135 @@ function DashboardWithTabs() {
       localStorage.setItem(COLLAPSED_FOLDERS_KEY, JSON.stringify([...next]))
       return next
     })
+  }
+
+  function expandFolder(id: string) {
+    setCollapsedFolders((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      localStorage.setItem(COLLAPSED_FOLDERS_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  function startCreate(mode: 'note' | 'diagram' | 'folder', folderId: string) {
+    expandFolder(folderId)
+    setSelectedFolderId(folderId)
+    setCreateMode(mode)
+  }
+
+  async function commitRename(item: TreeItem, raw: string) {
+    const name = raw.trim()
+    if (!name || name === item.name) {
+      setRenaming(null)
+      return
+    }
+    try {
+      if (item.type === 'folder') {
+        await api.renameFolder(item.id, { name })
+      } else {
+        await api.updateDocument(item.id, { title: name })
+        updateTabTitle(item.id, name)
+      }
+      await refreshTree()
+    } catch {
+      // silent revert, matching the tab-bar rename behavior
+    }
+    setRenaming(null)
+  }
+
+  async function handleExport(item: TreeItem) {
+    try {
+      const content = await api.exportDocument(item.id)
+      const isDiagram = item.kind === 'EXCALIDRAW'
+      const blob = new Blob([content], {
+        type: isDiagram ? 'application/json;charset=utf-8' : 'text/markdown;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${item.name}.${isDiagram ? 'excalidraw' : 'md'}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleDeleteDocument(id: string) {
+    try {
+      await api.deleteDocument(id)
+    } catch {
+      return
+    }
+    closeTab(id)
+    await refreshTree()
+    if (activeDocId === id) navigate('/')
+  }
+
+  async function handleDeleteFolder(id: string) {
+    const affected = collectSubtreeDocumentIds(tree, id)
+    try {
+      await api.deleteFolder(id)
+    } catch {
+      return
+    }
+    for (const docId of affected) closeTab(docId)
+    await refreshTree()
+    if (activeDocId && affected.has(activeDocId)) navigate('/')
+  }
+
+  function buildMenuItems(item: TreeItem): TreeMenuItem[] {
+    if (item.type === 'folder') {
+      const isRoot = item.folderGitPath === ''
+      const items: TreeMenuItem[] = [
+        { label: 'New note', onSelect: () => startCreate('note', item.id) },
+        { label: 'New diagram', onSelect: () => startCreate('diagram', item.id) },
+        { label: 'New subfolder', onSelect: () => startCreate('folder', item.id) },
+      ]
+      if (!isRoot) {
+        items.push(
+          { separator: true },
+          { label: 'Rename', onSelect: () => setRenaming({ id: item.id, name: item.name }) },
+          {
+            label: 'Settings',
+            onSelect: () =>
+              setFolderSettings({ id: item.id, name: item.name, mode: item.folderMode ?? 'GIT' }),
+          },
+          {
+            label: 'Delete',
+            danger: true,
+            onSelect: () => setDeleteTarget({ id: item.id, title: item.name, kind: 'folder' }),
+          },
+        )
+      } else {
+        items.push(
+          { separator: true },
+          {
+            label: 'Settings',
+            onSelect: () =>
+              setFolderSettings({ id: item.id, name: item.name, mode: item.folderMode ?? 'GIT' }),
+          },
+        )
+      }
+      return items
+    }
+
+    return [
+      { label: 'Open', onSelect: () => openDoc(item, false) },
+      { label: 'Rename', onSelect: () => setRenaming({ id: item.id, name: item.name }) },
+      { label: 'Move to folder', onSelect: () => setMoveDoc({ id: item.id, title: item.name }) },
+      { label: 'Export', onSelect: () => void handleExport(item) },
+      { separator: true },
+      {
+        label: 'Delete',
+        danger: true,
+        onSelect: () => setDeleteTarget({ id: item.id, title: item.name, kind: 'document' }),
+      },
+    ]
   }
 
   function onNavScroll() {
@@ -282,6 +426,34 @@ function DashboardWithTabs() {
   }
 
 
+  function renameInput(item: TreeItem) {
+    return (
+      <input
+        className="tree-rename-input"
+        defaultValue={item.name}
+        autoFocus
+        onFocus={(e) => e.currentTarget.select()}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          else if (e.key === 'Escape') {
+            cancelRenameRef.current = true
+            setRenaming(null)
+          }
+        }}
+        onBlur={(e) => {
+          if (cancelRenameRef.current) {
+            cancelRenameRef.current = false
+            return
+          }
+          void commitRename(item, e.currentTarget.value)
+        }}
+      />
+    )
+  }
+
   function renderTree(items: TreeItem[], depth = 0, parentPath = '') {
     if (!Array.isArray(items)) return null
     return items.map((item) => {
@@ -300,6 +472,10 @@ function DashboardWithTabs() {
                 setSelectedFolderId(item.id)
                 if (!isOpen) toggleFolder(item.id)
               }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setTreeMenu({ x: e.clientX, y: e.clientY, item })
+              }}
             >
               <button
                 type="button"
@@ -313,7 +489,11 @@ function DashboardWithTabs() {
                 <IconChevronRight className={isOpen ? 'open' : ''} />
               </button>
               <IconFolder className={`tree-icon${isOpen ? ' open' : ''}`} />
-              <span className="tree-row-label">{item.name}</span>
+              {renaming?.id === item.id ? (
+                renameInput(item)
+              ) : (
+                <span className="tree-row-label">{item.name}</span>
+              )}
               <button
                 className="tree-item-action"
                 title="Folder settings"
@@ -359,6 +539,10 @@ function DashboardWithTabs() {
               e.preventDefault()
               openDoc(item, true)
             }}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setTreeMenu({ x: e.clientX, y: e.clientY, item })
+            }}
           >
             <span className="tree-chevron-spacer" aria-hidden="true" />
             {item.kind === 'EXCALIDRAW' ? (
@@ -371,10 +555,14 @@ function DashboardWithTabs() {
             ) : (
               <IconFile className="tree-icon file" />
             )}
-            <span className="tree-row-label">
-              {unsaved && <span className="doc-state-marker">*</span>}
-              {item.name}
-            </span>
+            {renaming?.id === item.id ? (
+              renameInput(item)
+            ) : (
+              <span className="tree-row-label">
+                {unsaved && <span className="doc-state-marker">*</span>}
+                {item.name}
+              </span>
+            )}
             {item.updatedAt && (
               <span className="doc-created-at">{formatUpdatedAt(item.updatedAt)}</span>
             )}
@@ -546,6 +734,48 @@ function DashboardWithTabs() {
             refreshTree()
             void mode
           }}
+        />
+      )}
+
+      {treeMenu && (
+        <TreeContextMenu
+          x={treeMenu.x}
+          y={treeMenu.y}
+          items={buildMenuItems(treeMenu.item)}
+          onClose={() => setTreeMenu(null)}
+        />
+      )}
+
+      {moveDoc && (
+        <MoveDocumentDialog
+          documentTitle={moveDoc.title}
+          tree={tree}
+          onClose={() => setMoveDoc(null)}
+          onMove={(folderId) => {
+            void api
+              .moveDocument(moveDoc.id, folderId)
+              .then(() => refreshTree())
+              .catch(() => {})
+              .finally(() => setMoveDoc(null))
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          title={deleteTarget.kind === 'folder' ? 'Delete folder' : 'Delete document'}
+          message={
+            deleteTarget.kind === 'folder'
+              ? `Delete folder "${deleteTarget.title}" and all its contents permanently?`
+              : `Delete "${deleteTarget.title}" permanently?`
+          }
+          confirmLabel="Delete"
+          onConfirm={() => {
+            if (deleteTarget.kind === 'folder') void handleDeleteFolder(deleteTarget.id)
+            else void handleDeleteDocument(deleteTarget.id)
+            setDeleteTarget(null)
+          }}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>
