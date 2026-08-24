@@ -522,6 +522,15 @@ export function DocumentEditPage() {
           onFormat={handleFormat}
           wordWrap={wordWrap}
           onToggleWrap={toggleWordWrap}
+          onSave={() => void handleSave()}
+          saveBusy={isCommitting}
+          onCommit={() => void handleCommit()}
+          commitMessage={commitMessage}
+          onCommitMessageChange={setCommitMessage}
+          commitBusy={isCommitting}
+          onDiscard={() => setShowDiscardConfirm(true)}
+          discardDisabled={isDiscarding || !hasChanges}
+          onShare={() => setShowShareDialog(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
           showHistory={showHistory}

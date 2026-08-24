@@ -172,3 +172,42 @@
   border: 1px solid var(--color-border);
   pointer-events: none;
 }
+
+/* Action buttons (Save/Commit/Discard/Share) inside the editor toolbar */
+.toolbar-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.toolbar-actions-group .toolbar-save-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.toolbar-actions-group .toolbar-save-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.toolbar-commit-section {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.toolbar-commit-section input {
+  width: 120px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+}
+
+.toolbar-commit-section input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
