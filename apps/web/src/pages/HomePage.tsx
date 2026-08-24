@@ -3,6 +3,8 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import { api } from '../api-client'
 import type { DashboardContext } from './DashboardPage'
 import { findFirstFolder } from '../utils/tree'
+import { AsciiCastle } from '../components/AsciiCastle.js'
+import { AiChatBar } from '../components/AiChatBar.js'
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -40,11 +42,14 @@ export default function HomePage() {
       </div>
       <div className="main-content">
         {!showCreate ? (
-          <div className="placeholder-content">
-            <p>Select a document or create a new one to get started.</p>
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-              Create New Document
-            </button>
+          <div className="castle-home">
+            <AsciiCastle />
+            <AiChatBar />
+            <div className="castle-home-actions">
+              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+                Create New Document
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleCreate} className="create-doc-form">

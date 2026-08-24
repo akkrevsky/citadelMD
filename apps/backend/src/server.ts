@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth.js'
 import { userRoutes } from './routes/users.js'
 import { folderRoutes } from './routes/folders.js'
 import { documentRoutes } from './routes/documents.js'
+import { aiRoutes } from './routes/ai.js'
 import { uploadRoutes } from './routes/upload.routes.js'
 import { shareRoutes } from './routes/share.routes.js'
 import { adminRoutes } from './routes/admin.routes.js'
@@ -46,6 +47,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Document routes
   await app.register(documentRoutes)
+  await app.register(aiRoutes)
 
   // Upload routes
   await app.register(uploadRoutes)

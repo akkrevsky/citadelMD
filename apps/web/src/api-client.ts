@@ -312,6 +312,13 @@ class ApiClient {
     })
   }
 
+  aiChat(messages: Array<{ role: 'user' | 'assistant'; content: string }>) {
+    return this.request<{ text: string }>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    })
+  }
+
   importDocument(folderId: string, file: File) {
     const formData = new FormData()
     formData.append('file', file)

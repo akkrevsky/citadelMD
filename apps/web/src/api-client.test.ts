@@ -454,4 +454,35 @@ describe('api-client', () => {
     })
   })
 
+  describe('aiChat', () => {
+    it('sends messages to the ai endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ text: 'Hi' }),
+      })
+
+      const result = await api.aiChat([{ role: 'user', content: 'hello' }])
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/ai/chat')
+      expect(options.method).toBe('POST')
+      expect(JSON.parse(options.body as string)).toEqual({
+        messages: [{ role: 'user', content: 'hello' }],
+      })
+      expect(result.text).toBe('Hi')
+    })
+
+    it('throws upstream errors', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: () => Promise.resolve({ error: { code: 'AI_UPSTREAM_ERROR', message: 'AI provider returned 401' } }),
+      })
+
+      await expect(api.aiChat([{ role: 'user', content: 'x' }])).rejects.toThrow(
+        'AI provider returned 401',
+      )
+    })
+  })
+
 })
