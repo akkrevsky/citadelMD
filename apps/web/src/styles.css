@@ -1682,22 +1682,22 @@ select:focus {
   min-height: 100%;
 }
 
-.ascii-castle-wrap {
+.ascii-galaxy-wrap {
   width: 100%;
   overflow: hidden;
   display: flex;
   justify-content: center;
 }
 
-.ascii-castle-box {
+.ascii-galaxy-box {
   background: #000;
   border-radius: var(--radius);
   overflow: hidden;
   flex-shrink: 0;
 }
 
-.ascii-castle {
-  color: #d2691e;
+.ascii-galaxy {
+  color: #c9d1ff;
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 10px;

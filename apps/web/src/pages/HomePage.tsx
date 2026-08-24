@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import { api } from '../api-client'
 import type { DashboardContext } from './DashboardPage'
 import { findFirstFolder } from '../utils/tree'
-import { AsciiCastle } from '../components/AsciiCastle.js'
+import { AsciiGalaxy } from '../components/AsciiGalaxy.js'
 import { AiChatBar } from '../components/AiChatBar.js'
 
 export default function HomePage() {
@@ -43,7 +43,7 @@ export default function HomePage() {
       <div className="main-content">
         {!showCreate ? (
           <div className="castle-home">
-            <AsciiCastle />
+            <AsciiGalaxy />
             <AiChatBar />
             <div className="castle-home-actions">
               <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
