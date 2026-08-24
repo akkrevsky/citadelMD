@@ -1690,8 +1690,7 @@ select:focus {
 }
 
 .ascii-galaxy-box {
-  background: #000;
-  border-radius: var(--radius);
+  background: transparent;
   overflow: hidden;
   flex-shrink: 0;
 }
