@@ -164,18 +164,8 @@ services:
       context: ../
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
+    # The single entry point: static SPA + /api, /socket, /mcp proxying.
+    # An external nginx on the host network terminates TLS and forwards here.
     ports:
       - "8081:80"
-    networks: [internal]
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    depends_on: [backend, yjs-server, mcp-server, web]
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
     networks: [internal]
