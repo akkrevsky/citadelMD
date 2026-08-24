@@ -34,14 +34,21 @@ export function AiChatBar() {
   return (
     <div className="ai-chat-bar">
       {messages.length > 0 && (
-        <div className="ai-chat-log" aria-live="polite">
-          {messages.slice(-6).map((m, i) => (
+        <div className="ai-chat-log flex flex-col gap-2" aria-live="polite">
+          {messages.slice(-8).map((m, i) => (
             <div key={i} className={`ai-chat-msg ai-chat-msg-${m.role}`}>
-              <span className="ai-chat-who">{m.role === 'user' ? 'Вы' : 'ИИ'}:</span>{' '}
-              {m.content}
+              <span className="ai-chat-who">{m.role === 'user' ? 'Вы' : 'Viking'}</span>
+              <div className="ai-chat-bubble">{m.content}</div>
             </div>
           ))}
-          {busy && <div className="ai-chat-msg ai-chat-msg-assistant">…</div>}
+          {busy && (
+            <div className="ai-chat-msg ai-chat-msg-assistant">
+              <span className="ai-chat-who">Viking</span>
+              <div className="ai-chat-bubble">
+                <span className="ai-chat-typing">···</span>
+              </div>
+            </div>
+          )}
           {error && <div className="ai-chat-msg ai-chat-msg-error">{error}</div>}
         </div>
       )}
@@ -59,11 +66,14 @@ export function AiChatBar() {
         />
         <button
           type="button"
-          className="btn btn-sm btn-primary"
+          className="ai-chat-send"
           onClick={() => void send()}
           disabled={busy || !input.trim()}
+          title="Отправить"
         >
-          {busy ? '…' : 'Отправить'}
+          <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16" aria-hidden="true">
+            <path d="M8 1.5a.75.75 0 0 1 .75.75v9.19l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V2.25A.75.75 0 0 1 8 1.5Z" />
+          </svg>
         </button>
       </div>
     </div>
