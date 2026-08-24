@@ -34,6 +34,10 @@ export interface TreeItem {
   updatedAt?: string
   filePath?: string
   folderMode?: 'GIT' | 'SNAPSHOT'
+  /** Folders: own parent id (null for top-level); documents: their parent folder id */
+  parentId?: string | null
+  /** Folders only: git path ('' for the Root folder) */
+  folderGitPath?: string
   children?: TreeItem[]
 }
 
@@ -41,6 +45,8 @@ export interface FolderNode {
   id: string
   name: string
   mode?: 'GIT' | 'SNAPSHOT'
+  parentId: string | null
+  gitPath: string
   permission: string
   children: FolderNode[]
   documents: Document[]
@@ -85,6 +91,7 @@ function flattenTree(folders: FolderNode[]): TreeItem[] {
         updatedAt: doc.updatedAt,
         filePath: doc.filePath,
         folderMode: folder.mode ?? 'GIT',
+        parentId: folder.id,
       })
     }
     result.push({
@@ -92,6 +99,8 @@ function flattenTree(folders: FolderNode[]): TreeItem[] {
       name: folder.name,
       type: 'folder',
       folderMode: folder.mode ?? 'GIT',
+      parentId: folder.parentId,
+      folderGitPath: folder.gitPath,
       children,
     })
   }
@@ -303,6 +312,19 @@ class ApiClient {
     return this.request<{ id: string; name: string; mode: 'GIT' | 'SNAPSHOT' }>('/folders', {
       method: 'POST',
       body: JSON.stringify({ name, parentId: parentId ?? null }),
+    })
+  }
+
+  renameFolder(id: string, data: { name: string }) {
+    return this.request<{ id: string; name: string; mode: 'GIT' | 'SNAPSHOT' }>(`/folders/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  }
+
+  deleteFolder(id: string) {
+    return this.request<void>(`/folders/${id}`, {
+      method: 'DELETE',
     })
   }
 

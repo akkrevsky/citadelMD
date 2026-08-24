@@ -186,9 +186,10 @@ describe('api-client', () => {
         json: () => Promise.resolve({
           tree: [
             {
-              id: 'f1', name: 'Root', permission: 'ADMIN',
+              id: 'f1', name: 'Root', permission: 'ADMIN', parentId: null, gitPath: '',
               children: [
-                { id: 'f2', name: 'Sub', permission: 'VIEW', children: [], documents: [] },
+                { id: 'f2', name: 'Sub', permission: 'VIEW', parentId: 'f1', gitPath: 'sub',
+                  children: [], documents: [] },
               ],
               documents: [
                 { id: 'd1', title: 'Doc1', filePath: 'root/doc1.md', updatedAt: '2026-01-01' },
@@ -201,6 +202,11 @@ describe('api-client', () => {
       const tree = await api.getTree()
       // Should flatten: folder "Root" and its document "Doc1" (children excluded if empty docs)
       expect(Array.isArray(tree)).toBe(true)
+      const root = tree.find((i) => i.type === 'folder' && i.name === 'Root')
+      expect(root?.parentId).toBeNull()
+      expect(root?.folderGitPath).toBe('')
+      const doc = root?.children?.find((i) => i.type === 'document')
+      expect(doc?.parentId).toBe('f1')
     })
 
     it('returns empty array on error', async () => {
@@ -208,6 +214,62 @@ describe('api-client', () => {
 
       const tree = await api.getTree()
       expect(tree).toEqual([])
+    })
+  })
+
+  describe('renameFolder', () => {
+    it('sends PATCH to /api/folders/:id with name', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 'f1', name: 'New', mode: 'GIT' }),
+      })
+
+      const result = await api.renameFolder('f1', { name: 'New' })
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/folders/f1')
+      expect(options.method).toBe('PATCH')
+      expect(JSON.parse(options.body)).toEqual({ name: 'New' })
+      expect(result.name).toBe('New')
+    })
+
+    it('throws on server error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ error: { code: 'FOLDER_EXISTS', message: 'Folder with this name already exists' } }),
+      })
+
+      await expect(api.renameFolder('f1', { name: 'New' })).rejects.toThrow(
+        'Folder with this name already exists',
+      )
+    })
+  })
+
+  describe('deleteFolder', () => {
+    it('sends DELETE to /api/folders/:id without a body', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 204 })
+
+      await api.deleteFolder('f1')
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/folders/f1')
+      expect(options.method).toBe('DELETE')
+      expect(options.body).toBeUndefined()
+      // Empty body must not set Content-Type (Fastify rejects such requests)
+      expect((options.headers as Record<string, string> | undefined)?.['Content-Type']).toBeUndefined()
+    })
+
+    it('throws on server error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: { code: 'FOLDER_NOT_FOUND', message: 'Folder not found' } }),
+      })
+
+      await expect(api.deleteFolder('missing')).rejects.toThrow('Folder not found')
     })
   })
 
