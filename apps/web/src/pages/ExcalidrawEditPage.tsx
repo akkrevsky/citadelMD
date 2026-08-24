@@ -307,6 +307,8 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
           </div>
 
           <div className="document-toolbar">
+            {hasChanges && <span className="changes-indicator">Unsaved changes</span>}
+
             <button
               onClick={() => void handleSave()}
               disabled={isSaving || isCommitting}

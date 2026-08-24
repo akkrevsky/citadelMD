@@ -58,3 +58,17 @@ describe('scene drafts', () => {
     expect(loadSceneDraft('doc-1')).toBeNull()
   })
 })
+
+describe('normalizeScene — excalidraw load rewrites', () => {
+  it('treats boundElements null and [] as equal', () => {
+    const withNull = scene([{ id: '1', type: 'rectangle', boundElements: null }])
+    const withArray = scene([{ id: '1', type: 'rectangle', boundElements: [] }])
+    expect(normalizeScene(withNull)).toBe(normalizeScene(withArray))
+  })
+
+  it('still detects real element changes', () => {
+    const a = scene([{ id: '1', type: 'rectangle', boundElements: null }])
+    const b = scene([{ id: '1', type: 'rectangle', boundElements: [{ id: '2', type: 'arrow' }] }])
+    expect(normalizeScene(a)).not.toBe(normalizeScene(b))
+  })
+})

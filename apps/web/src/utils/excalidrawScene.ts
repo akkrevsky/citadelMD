@@ -1,10 +1,23 @@
 import type { ExcalidrawSceneData } from '../components/ExcalidrawEditor.js'
 
+/**
+ * Excalidraw rewrites some element fields when it loads a scene
+ * (e.g. boundElements null -> []). Canonicalize them so that merely
+ * opening a document never counts as a user change.
+ */
+function canonicalElement(el: unknown): unknown {
+  if (!el || typeof el !== 'object') return el
+  const record = el as Record<string, unknown>
+  const out: Record<string, unknown> = { ...record }
+  if (out.boundElements === null) out.boundElements = []
+  return out
+}
+
 export function normalizeScene(scene: ExcalidrawSceneData): string {
   // files is deliberately excluded: Excalidraw fills it during scene init
   // (fonts etc.), which must not count as a user change.
   return JSON.stringify({
-    elements: scene.elements ?? [],
+    elements: (scene.elements ?? []).map(canonicalElement),
     appState: {
       viewBackgroundColor: scene.appState?.viewBackgroundColor ?? '#ffffff',
     },
