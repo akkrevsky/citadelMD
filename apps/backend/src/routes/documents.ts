@@ -107,6 +107,15 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         })
       }
 
+      const extension = document.kind === 'EXCALIDRAW' ? '.excalidraw' : '.md'
+      const filename = `${document.title}${extension}`
+      // HTTP headers must be ASCII: strip non-ASCII chars for the legacy
+      // filename fallback and carry the full name via RFC 5987 filename*.
+      const sanitizedTitle = document.title
+        .replace(/[^\x20-\x7e]/g, '_')
+        .replace(/["\\]/g, '_')
+      const asciiFallback = (/[a-z0-9]/i.test(sanitizedTitle) ? sanitizedTitle : 'document') + extension
+
       return reply
         .header(
           'Content-Type',
@@ -116,7 +125,7 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
         )
         .header(
           'Content-Disposition',
-          `attachment; filename="${document.title}${document.kind === 'EXCALIDRAW' ? '.excalidraw' : '.md'}"`,
+          `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         )
         .status(200)
         .send(content)

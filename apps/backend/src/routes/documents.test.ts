@@ -392,4 +392,52 @@ describe('Document Routes', () => {
       expect(response.statusCode).toBe(403)
     })
   })
+
+  describe('GET /api/documents/:id/export', () => {
+    it('exports markdown content with a safe content-disposition filename', async () => {
+      mockDocumentService.getDocument.mockResolvedValue({
+        id: 'doc-123',
+        folderId: 'folder-123',
+        title: 'Test Document',
+        kind: 'MARKDOWN',
+      })
+      mockDocumentService.getDocumentContent.mockResolvedValue('# Hello')
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/export',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.body).toBe('# Hello')
+      expect(response.headers['content-type']).toContain('text/markdown')
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="Test Document.md"; filename*=UTF-8\'\'Test%20Document.md',
+      )
+    })
+
+    it('encodes non-ASCII titles instead of failing with invalid header chars', async () => {
+      mockDocumentService.getDocument.mockResolvedValue({
+        id: 'doc-123',
+        folderId: 'folder-123',
+        title: 'ываыва',
+        kind: 'MARKDOWN',
+      })
+      mockDocumentService.getDocumentContent.mockResolvedValue('content')
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/doc-123/export',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      const disposition = response.headers['content-disposition'] as string
+      // A fully non-ASCII title falls back to a plain ASCII filename; the
+      // full name is percent-encoded via RFC 5987 filename*.
+      expect(disposition).toContain('filename="document.md"')
+      expect(disposition).toContain("filename*=UTF-8''" + encodeURIComponent('ываыва.md'))
+    })
+  })
 })
