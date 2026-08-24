@@ -15,7 +15,7 @@ import {
   setUncommittedChanges,
   clearUncommittedChanges,
 } from '../utils/unsaved.js'
-import { truncate, formatUpdatedAt } from '../utils/string.js'
+import { formatUpdatedAt } from '../utils/string.js'
 import { isModShortcut } from '../utils/keyboard.js'
 import {
   normalizeScene,
@@ -301,7 +301,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                 )}
               </div>
               <span className="document-path" title={fullTitlePath}>
-                {truncate(doc.title, 25)}
+                {fullTitlePath}
               </span>
             </div>
           </div>

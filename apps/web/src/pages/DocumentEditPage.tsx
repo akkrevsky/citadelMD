@@ -16,7 +16,7 @@ import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
 import { useTabs } from '../contexts/TabsContext.js'
 import { setUnsavedChanges, clearUnsavedChanges, setUncommittedChanges, clearUncommittedChanges } from '../utils/unsaved.js'
-import { truncate, formatUpdatedAt } from '../utils/string.js'
+import { formatUpdatedAt } from '../utils/string.js'
 import { isModShortcut } from '../utils/keyboard.js'
 import { buildFormatCommand } from '../utils/format.js'
 import { parseHtmlClipboard, dataUrlToFile } from '../utils/html-to-markdown.js'
@@ -436,7 +436,7 @@ export function DocumentEditPage() {
             )}
           </div>
           <span className="document-path" title={fullTitlePath}>
-            {truncate(doc.title, 25)}
+            {fullTitlePath}
           </span>
         </div>
 
