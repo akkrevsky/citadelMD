@@ -302,68 +302,68 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                 )}
               </span>
             </div>
-
-            <div className="document-actions">
-              {hasChanges && <span className="changes-indicator">Unsaved changes</span>}
-
-              <button
-                onClick={() => void handleSave()}
-                disabled={isSaving || isCommitting}
-                title="Сохранить диаграмму"
-                className="btn btn-sm btn-primary"
-              >
-                {isSaving ? 'Saving...' : (<><IconSave /> Save</>)}
-              </button>
-
-              {usesGit && (
-                <div className="commit-section">
-                  <input
-                    type="text"
-                    placeholder="Commit message"
-                    value={commitMessage}
-                    onChange={(e) => setCommitMessage(e.target.value)}
-                    disabled={isCommitting}
-                  />
-                  <button
-                    onClick={handleCommit}
-                    disabled={!commitMessage.trim() || isCommitting}
-                  >
-                    {isCommitting ? 'Committing...' : (<><IconCommit /> Commit</>)}
-                  </button>
-                </div>
-              )}
-
-              {usesGit && (
-                <button
-                  onClick={() => setShowDiscardConfirm(true)}
-                  disabled={isDiscarding || !hasChanges}
-                  className="discard-button"
-                >
-                  {isDiscarding ? 'Discarding...' : (<><IconDiscard /> Discard</>)}
-                </button>
-              )}
-
-              <button onClick={() => setShowShareDialog(true)}><IconShare /> Share</button>
-
-              {usesGit && (
-                <button
-                  className={showHistory ? 'btn btn-sm btn-primary' : ''}
-                  onClick={() => {
-                    setShowHistory((v) => {
-                      const next = !v
-                      if (next) setHistoryTick((t) => t + 1)
-                      return next
-                    })
-                  }}
-                >
-                  {showHistory ? (<><IconHistory /> Скрыть историю</>) : (<><IconHistory /> История</>)}
-                </button>
-              )}
-
-              <button onClick={() => navigate('/')}><IconDashboard /> Dashboard</button>
-            </div>
           </div>
 
+          <div className="document-toolbar">
+            <button
+              onClick={() => void handleSave()}
+              disabled={isSaving || isCommitting}
+              title="Сохранить диаграмму"
+              className="btn-primary"
+            >
+              <IconSave /> {isSaving ? 'Saving...' : 'Save'}
+            </button>
+
+            {usesGit && (
+              <div className="commit-section">
+                <input
+                  type="text"
+                  placeholder="Commit message"
+                  value={commitMessage}
+                  onChange={(e) => setCommitMessage(e.target.value)}
+                  disabled={isCommitting}
+                />
+                <button
+                  onClick={handleCommit}
+                  disabled={!commitMessage.trim() || isCommitting}
+                >
+                  <IconCommit /> {isCommitting ? 'Committing...' : 'Commit'}
+                </button>
+              </div>
+            )}
+
+            {usesGit && (
+              <button
+                onClick={() => setShowDiscardConfirm(true)}
+                disabled={isDiscarding || !hasChanges}
+                className="discard-button"
+              >
+                <IconDiscard /> {isDiscarding ? 'Discarding...' : 'Discard'}
+              </button>
+            )}
+
+            <button onClick={() => setShowShareDialog(true)}>
+              <IconShare /> Share
+            </button>
+
+            {usesGit && (
+              <button
+                onClick={() => {
+                  setShowHistory((v) => {
+                    const next = !v
+                    if (next) setHistoryTick((t) => t + 1)
+                    return next
+                  })
+                }}
+              >
+                <IconHistory /> {showHistory ? 'Скрыть историю' : 'История'}
+              </button>
+            )}
+
+            <button onClick={() => navigate('/')}>
+              <IconDashboard /> Dashboard
+            </button>
+          </div>
           <div className="excalidraw-page-canvas">
             <Suspense
               fallback={

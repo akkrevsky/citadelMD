@@ -1044,12 +1044,12 @@ select:focus {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0.75rem 1.25rem;
+  padding: 0.4rem 0.75rem;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   gap: 0.5rem 1rem;
-  min-height: 48px;
+  min-height: 40px;
   flex-wrap: wrap;
 }
 
@@ -1189,6 +1189,75 @@ select:focus {
   height: 14px;
   vertical-align: -2px;
   margin-right: 4px;
+}
+
+/* Action toolbar row (Excalidraw page): buttons live here instead of the
+   header so the header stays slim */
+.document-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.35rem 0.75rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.document-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  background: var(--color-btn-default);
+  color: var(--color-btn-default-text);
+  border: 1px solid var(--color-btn-default-border);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.document-toolbar button:hover:not(:disabled) {
+  background: var(--color-btn-default-hover);
+  border-color: var(--color-btn-default-hover-border);
+}
+
+.document-toolbar button svg {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+}
+
+.document-toolbar .btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.document-toolbar .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.document-toolbar .commit-section {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.document-toolbar .commit-section input {
+  width: 130px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.78rem;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+}
+
+.document-toolbar .discard-button {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
 }
 
 .document-actions button:not(.commit-section button):not(.discard-button) {
