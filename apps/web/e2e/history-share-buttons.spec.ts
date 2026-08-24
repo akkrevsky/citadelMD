@@ -18,7 +18,7 @@ test('History and Share buttons render in document header', async ({ page }) => 
   // if the tree is empty.
   await page.waitForTimeout(1500)
   if (!page.url().includes('/documents/')) {
-    let docLink = page.locator('.tree-item.document .document-link').first()
+    let docLink = page.locator('.tree-row.document').first()
     if ((await docLink.count()) === 0) {
       await page.evaluate(async () => {
         const res = await fetch('/api/tree', { credentials: 'same-origin' })
@@ -35,7 +35,7 @@ test('History and Share buttons render in document header', async ({ page }) => 
       })
       await page.reload()
       await page.waitForTimeout(2000)
-      docLink = page.locator('.tree-item.document .document-link').first()
+      docLink = page.locator('.tree-row.document').first()
     }
     await expect(docLink).toBeVisible({ timeout: 10000 })
     await docLink.click()

@@ -17,7 +17,7 @@ test('Debug: document page loading', async ({ page }) => {
   console.log('Dashboard URL:', page.url())
 
   // Find document link
-  const docLinks = page.locator('.tree-item.document .document-link')
+  const docLinks = page.locator('.tree-row.document')
   const count = await docLinks.count()
   console.log('Document links count:', count)
 

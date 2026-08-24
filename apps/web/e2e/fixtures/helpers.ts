@@ -128,6 +128,6 @@ export async function ensureTwoPinnedTabs(page: Page, titleA: string, titleB: st
 export async function ensurePinnedTab(page: Page) {
   const tabs = page.locator('.tab-bar .tab-item')
   if ((await tabs.count()) > 0) return
-  await page.locator('.tree-item.document .document-link').first().dblclick()
+  await page.locator('.tree-row.document').first().dblclick()
   await expect(tabs.first()).toBeVisible({ timeout: 5000 })
 }

@@ -15,7 +15,7 @@ test('Debug: Find and scroll', async ({ page }) => {
   await page.waitForLoadState('networkidle')
 
   // Open document
-  const docCount = await page.locator('.tree-item.document .document-link').count()
+  const docCount = await page.locator('.tree-row.document').count()
   if (docCount === 0) {
     await page.getByRole('button', { name: 'Create New Document' }).click()
     await page.waitForTimeout(300)
@@ -27,7 +27,7 @@ test('Debug: Find and scroll', async ({ page }) => {
   } else {
     await Promise.all([
       page.waitForNavigation({ timeout: 10000 }),
-      page.locator('.tree-item.document .document-link').first().click(),
+      page.locator('.tree-row.document').first().click(),
     ])
   }
   await page.waitForLoadState('networkidle')

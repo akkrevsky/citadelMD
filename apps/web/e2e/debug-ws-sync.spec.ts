@@ -14,7 +14,7 @@ test('Debug: does typed content reach the server via WS?', async ({ page }) => {
   const editorVisible = await page.locator('.cm-editor .cm-content').isVisible().catch(() => false)
   if (!page.url().includes('/documents/') || !editorVisible) {
     const mdLink = page
-      .locator('.tree-item.document .document-link')
+      .locator('.tree-row.document')
       .filter({ hasNot: page.locator('.doc-kind-icon') })
       .first()
     await mdLink.click()
@@ -55,7 +55,7 @@ test('Debug: check connection status in status bar', async ({ page }) => {
   const editorVisible = await page.locator('.cm-editor .cm-content').isVisible().catch(() => false)
   if (!page.url().includes('/documents/') || !editorVisible) {
     const mdLink = page
-      .locator('.tree-item.document .document-link')
+      .locator('.tree-row.document')
       .filter({ hasNot: page.locator('.doc-kind-icon') })
       .first()
     await mdLink.click()
@@ -81,7 +81,7 @@ test('Debug: print docId and check flush', async ({ page }) => {
   const editorVisible = await page.locator('.cm-editor .cm-content').isVisible().catch(() => false)
   if (!page.url().includes('/documents/') || !editorVisible) {
     const mdLink = page
-      .locator('.tree-item.document .document-link')
+      .locator('.tree-row.document')
       .filter({ hasNot: page.locator('.doc-kind-icon') })
       .first()
     await mdLink.click()

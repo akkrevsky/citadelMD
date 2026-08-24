@@ -113,7 +113,7 @@ test.describe('UI improvements — diagrams', () => {
     const title = `Диаграмма ${Date.now()}`
     await createDiagram(page, title)
 
-    const treeLink = page.locator('.tree-item.document .document-link').filter({ hasText: title })
+    const treeLink = page.locator('.tree-row.document').filter({ hasText: title })
     await expect(treeLink).toBeVisible({ timeout: 10000 })
     await expect(treeLink).toContainText(title)
   })
@@ -126,7 +126,7 @@ test.describe('UI improvements — diagrams', () => {
 
     await expect(page.locator('.changes-indicator')).toBeVisible({ timeout: 10000 })
 
-    const docRow = page.locator('.tree-item.document.active')
+    const docRow = page.locator('.tree-node.doc-active .tree-row')
     await expect(docRow).toHaveClass(/doc-uncommitted/, { timeout: 5000 })
 
     await saveDiagramWithKeyboard(page)

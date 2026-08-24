@@ -38,7 +38,7 @@ test('Desktop: no console errors across main pages', async ({ page }) => {
   const editorVisible = await page.locator('.cm-editor .cm-content').isVisible().catch(() => false)
   if (!page.url().includes('/documents/') || !editorVisible) {
     const mdLink = page
-      .locator('.tree-item.document .document-link')
+      .locator('.tree-row.document')
       .filter({ hasNot: page.locator('.doc-kind-icon') })
       .first()
     await mdLink.click()
@@ -66,7 +66,7 @@ test('Desktop: no console errors across main pages', async ({ page }) => {
   await page.waitForTimeout(300)
 
   // Open an Excalidraw doc
-  const diagramLink = page.locator('.tree-item.document .document-link').filter({ has: page.locator('.doc-kind-icon') }).first()
+  const diagramLink = page.locator('.tree-row.document').filter({ has: page.locator('.doc-kind-icon') }).first()
   const diagramCount = await diagramLink.count()
   if (diagramCount > 0) {
     await diagramLink.click()
@@ -98,7 +98,7 @@ test('Mobile viewport: no console errors', async ({ page }) => {
   const editorVisible = await page.locator('.cm-editor .cm-content').isVisible().catch(() => false)
   if (!page.url().includes('/documents/') || !editorVisible) {
     const mdLink = page
-      .locator('.tree-item.document .document-link')
+      .locator('.tree-row.document')
       .filter({ hasNot: page.locator('.doc-kind-icon') })
       .first()
     await mdLink.click()

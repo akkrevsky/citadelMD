@@ -32,7 +32,7 @@ async function ensureDocument(page: Awaited<ReturnType<typeof test['info']>>['pa
   // Navigate to a markdown document: diagram links carry a .doc-kind-icon
   // (title "Diagram") inside them.
   const mdLink = page
-    .locator('.tree-item.document .document-link')
+    .locator('.tree-row.document')
     .filter({ hasNot: page.locator('.doc-kind-icon') })
     .first()
   await expect(mdLink).toBeVisible({ timeout: 10000 })
@@ -441,7 +441,7 @@ test.describe('Batch A — Document switching & save', () => {
     // and does not know about the API-created document, so reload first.
     await page.reload()
     await page.waitForTimeout(2500)
-    const docBLink = page.locator('.tree-item.document .document-link').filter({ hasText: docBTitle })
+    const docBLink = page.locator('.tree-row.document').filter({ hasText: docBTitle })
     await expect(docBLink).toBeVisible({ timeout: 10000 })
     await docBLink.click()
     await page.waitForURL(/\/documents\/.*\/edit/, { timeout: 10000 })
@@ -463,7 +463,7 @@ test.describe('Batch A — Document switching & save', () => {
       .toContain('MarkerDocBeta')
 
     // Navigate back to doc A via the sidebar (client-side navigation)
-    await page.locator('.tree-item.document .document-link').filter({ hasText: docATitle }).click()
+    await page.locator('.tree-row.document').filter({ hasText: docATitle }).click()
     await page.waitForTimeout(3000)
 
     // Preview must now show doc A's marker, NOT doc B's stale content

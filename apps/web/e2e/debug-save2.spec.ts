@@ -27,7 +27,7 @@ test('Debug: Ctrl+S network trace', async ({ page }) => {
 
   // If not on document, open one
   if (!page.url().includes('/documents/')) {
-    const link = page.locator('.tree-item.document .document-link').first()
+    const link = page.locator('.tree-row.document').first()
     await expect(link).toBeVisible({ timeout: 10000 })
     await link.click()
     await page.waitForURL(/\/documents\/.*\/edit/, { timeout: 10000 })

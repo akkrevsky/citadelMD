@@ -32,7 +32,7 @@ test('Debug: diagram save flow on dev server', async ({ page }) => {
   console.log('Unsaved after save:', await page.locator('.changes-indicator').isVisible())
   console.log(
     'Sidebar uncommitted:',
-    (await page.locator('.tree-item.document.active').getAttribute('class')) ?? '',
+    (await page.locator('.tree-node.doc-active .tree-row').getAttribute('class')) ?? '',
   )
 
   await page.screenshot({ path: 'test-results/debug-diagram-save.png', fullPage: true })

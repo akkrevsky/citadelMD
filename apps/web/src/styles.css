@@ -553,6 +553,16 @@ select:focus {
   transition: background 0.1s, color 0.1s;
 }
 
+/* Win over .sidebar-nav a (display: block, 0.9rem, 0.5rem padding) for document rows */
+.sidebar-nav .tree-row {
+  display: flex;
+  height: 28px;
+  padding-top: 0;
+  padding-right: 0.375rem;
+  padding-bottom: 0;
+  font-size: 12px;
+}
+
 .tree-row:hover {
   background: var(--color-surface-alt);
   color: var(--color-text);
