@@ -568,6 +568,12 @@ select:focus {
   color: var(--color-text);
 }
 
+.tree-row.folder.drag-over {
+  outline: 1px solid var(--color-primary);
+  outline-offset: -1px;
+  background: var(--color-primary-bg);
+}
+
 .tree-row.folder.active {
   background: var(--color-surface-alt);
   color: var(--color-text);

@@ -115,6 +115,8 @@ function DashboardWithTabs() {
     title: string
     kind: 'folder' | 'document'
   } | null>(null)
+  const dragDocRef = useRef<{ id: string; currentFolderId: string | null } | null>(null)
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
 
   const {
     openPreview,
@@ -221,6 +223,21 @@ function DashboardWithTabs() {
     closeTab(id)
     await refreshTree()
     if (activeDocId === id) navigate('/')
+  }
+
+  async function handleMoveDocument(
+    docId: string,
+    currentFolderId: string | null,
+    targetFolderId: string,
+  ) {
+    if (currentFolderId === targetFolderId) return
+    expandFolder(targetFolderId)
+    try {
+      await api.moveDocument(docId, targetFolderId)
+      await refreshTree()
+    } catch {
+      // ignore
+    }
   }
 
   async function handleDeleteFolder(id: string) {
@@ -466,7 +483,7 @@ function DashboardWithTabs() {
             <TreeIndentGuides depth={depth} />
             <div
               ref={isSelected ? selectedFolderRowRef : undefined}
-              className={`tree-row folder${isSelected ? ' active' : ''}`}
+              className={`tree-row folder${isSelected ? ' active' : ''}${dragOverFolderId === item.id ? ' drag-over' : ''}`}
               style={{ paddingLeft: `${TREE_ROW_PADDING + depth * TREE_INDENT}px` }}
               onClick={() => {
                 setSelectedFolderId(item.id)
@@ -475,6 +492,22 @@ function DashboardWithTabs() {
               onContextMenu={(e) => {
                 e.preventDefault()
                 setTreeMenu({ x: e.clientX, y: e.clientY, item })
+              }}
+              onDragOver={(e) => {
+                if (!dragDocRef.current) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setDragOverFolderId(item.id)
+              }}
+              onDragLeave={() =>
+                setDragOverFolderId((cur) => (cur === item.id ? null : cur))
+              }
+              onDrop={(e) => {
+                e.preventDefault()
+                const drag = dragDocRef.current
+                dragDocRef.current = null
+                setDragOverFolderId(null)
+                if (drag) void handleMoveDocument(drag.id, drag.currentFolderId, item.id)
               }}
             >
               <button
@@ -542,6 +575,18 @@ function DashboardWithTabs() {
             onContextMenu={(e) => {
               e.preventDefault()
               setTreeMenu({ x: e.clientX, y: e.clientY, item })
+            }}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('text/plain', item.id)
+              // Suppress the native anchor link-drag, which would navigate on stray drops
+              e.dataTransfer.setData('text/uri-list', '')
+              dragDocRef.current = { id: item.id, currentFolderId: item.parentId ?? null }
+            }}
+            onDragEnd={() => {
+              dragDocRef.current = null
+              setDragOverFolderId(null)
             }}
           >
             <span className="tree-chevron-spacer" aria-hidden="true" />
