@@ -1,15 +1,25 @@
 import type { ExcalidrawSceneData } from '../components/ExcalidrawEditor.js'
 
 /**
- * Excalidraw rewrites some element fields when it loads a scene
- * (e.g. boundElements null -> []). Canonicalize them so that merely
- * opening a document never counts as a user change.
+ * Excalidraw rewrites several element fields when it loads a scene:
+ * null collections become [], and the collaboration/layout metadata
+ * (version, versionNonce, updated, index, seed) is regenerated on restore.
+ * Canonicalize them so that merely opening a document never counts as a
+ * user change. Z-order edits are still detected via element array order.
  */
+const VOLATILE_ELEMENT_FIELDS = ['version', 'versionNonce', 'updated', 'index', 'seed']
+
 function canonicalElement(el: unknown): unknown {
   if (!el || typeof el !== 'object') return el
   const record = el as Record<string, unknown>
-  const out: Record<string, unknown> = { ...record }
-  if (out.boundElements === null) out.boundElements = []
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (VOLATILE_ELEMENT_FIELDS.includes(key)) continue
+    out[key] = value
+  }
+  for (const collectionKey of ['boundElements', 'groupIds']) {
+    if (out[collectionKey] === null) out[collectionKey] = []
+  }
   return out
 }
 
