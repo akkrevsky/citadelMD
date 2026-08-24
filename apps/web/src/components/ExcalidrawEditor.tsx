@@ -16,24 +16,74 @@ export interface ExcalidrawSceneData {
 interface ExcalidrawEditorProps {
   initialData?: ExcalidrawSceneData | null
   onChange?: (scene: ExcalidrawSceneData) => void
+  /** Fired once after the editor settles (fonts loaded, Excalidraw done
+   *  reflowing text-bound elements) with the settled scene. */
+  onSettled?: (scene: ExcalidrawSceneData) => void
   theme?: 'light' | 'dark'
 }
 
-function ExcalidrawEditor({ initialData, onChange, theme = 'light' }: ExcalidrawEditorProps) {
+function ExcalidrawEditor({ initialData, onChange, onSettled, theme = 'light' }: ExcalidrawEditorProps) {
   const [Excalidraw, setExcalidraw] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const apiRef = useRef<any>(null)
   const onChangeRef = useRef(onChange)
+  const onSettledRef = useRef(onSettled)
   const readyRef = useRef(false)
+  const settledRef = useRef(false)
   onChangeRef.current = onChange
+  onSettledRef.current = onSettled
 
+  // Excalidraw fires change events while restoring a scene: it reflows
+  // text-bound elements once the fonts finish loading, which mutates real
+  // geometry (x/y/width/height). Until the editor settles, suppress those
+  // events; then report the settled scene so the caller can rebaseline
+  // against it instead of treating the reflow as a user change.
   useEffect(() => {
     readyRef.current = false
-    const id = window.requestAnimationFrame(() => {
+    settledRef.current = false
+    let cancelled = false
+
+    const settle = () => {
+      if (cancelled || settledRef.current) return
+      settledRef.current = true
       readyRef.current = true
-    })
-    return () => window.cancelAnimationFrame(id)
+      const api = apiRef.current
+      if (api && onSettledRef.current) {
+        const elements = api.getSceneElements()
+        const appState = api.getAppState()
+        onSettledRef.current({
+          type: 'excalidraw',
+          version: 2,
+          source: 'citadelmd',
+          elements: elements ?? [],
+          appState: { viewBackgroundColor: appState?.viewBackgroundColor ?? '#ffffff' },
+          files: {},
+        })
+      }
+    }
+
+    const fontsReady = document.fonts?.ready
+    let timer: ReturnType<typeof setTimeout>
+    if (fontsReady) {
+      fontsReady
+        .then(() => {
+          if (!cancelled) timer = setTimeout(settle, 400)
+        })
+        .catch(() => {
+          if (!cancelled) timer = setTimeout(settle, 400)
+        })
+    } else {
+      timer = setTimeout(settle, 800)
+    }
+    // Fallback: if fonts never resolve, open the gate anyway.
+    const fallback = setTimeout(settle, 3000)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+      clearTimeout(fallback)
+    }
   }, [initialData])
 
   useEffect(() => {

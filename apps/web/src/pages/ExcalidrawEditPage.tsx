@@ -55,6 +55,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   const sceneRef = useRef<ExcalidrawSceneData | null>(null)
   const baselineRef = useRef('')
   const loadedKey = useRef(0)
+  const restoredDraftRef = useRef(false)
 
   const usesGit = doc.folderMode !== 'SNAPSHOT'
 
@@ -94,6 +95,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
       baselineRef.current = baseline
       const draft = loadSceneDraft(documentId)
       const restored = draft ? normalizeScene(draft) !== baseline : false
+      restoredDraftRef.current = restored
       sceneRef.current = draft ?? parsed
       setScene(draft ?? parsed)
       loadedKey.current += 1
@@ -118,6 +120,21 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   useEffect(() => {
     setDoc(initialDoc)
   }, [initialDoc])
+
+  // Fired once after the editor settles (fonts loaded, Excalidraw done
+  // reflowing text-bound elements). Adopt the settled scene as the new
+  // baseline so the load-time reflow never counts as a user change — unless
+  // a draft was restored, in which case the user's unsaved edits stay dirty.
+  const handleSceneSettled = useCallback(
+    (settled: ExcalidrawSceneData) => {
+      sceneRef.current = settled
+      setScene(settled)
+      if (!restoredDraftRef.current) {
+        baselineRef.current = normalizeScene(settled)
+      }
+    },
+    [],
+  )
 
   const handleSceneChange = useCallback(
     (next: ExcalidrawSceneData) => {
@@ -379,6 +396,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                   key={`${documentId}-${loadedKey.current}`}
                   initialData={scene}
                   onChange={handleSceneChange}
+                  onSettled={handleSceneSettled}
                   theme={theme === 'dark' ? 'dark' : 'light'}
                 />
               )}
