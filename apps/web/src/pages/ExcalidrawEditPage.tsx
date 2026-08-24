@@ -127,8 +127,9 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
   // a draft was restored, in which case the user's unsaved edits stay dirty.
   const handleSceneSettled = useCallback(
     (settled: ExcalidrawSceneData) => {
+      // Do NOT setScene here — the scene state only drives the initial
+      // mount; feeding the settled scene back would reset the canvas.
       sceneRef.current = settled
-      setScene(settled)
       if (!restoredDraftRef.current) {
         baselineRef.current = normalizeScene(settled)
       }

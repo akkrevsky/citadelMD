@@ -84,7 +84,11 @@ function ExcalidrawEditor({ initialData, onChange, onSettled, theme = 'light' }:
       clearTimeout(timer)
       clearTimeout(fallback)
     }
-  }, [initialData])
+    // Run once per editor instance: the parent remounts via the key prop on
+    // real reloads (loadScene/discard). Depending on initialData would loop,
+    // because the settled scene is fed back through the scene state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     let cancelled = false
