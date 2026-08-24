@@ -251,6 +251,10 @@ export function DocumentEditPage() {
   }
 
   const handleSave = async () => {
+    if (!hasChanges) {
+      createToast(setToasts, 'Нет несохранённых изменений', 'info')
+      return
+    }
     try {
       setIsCommitting(true)
       const res = await api.commitDocument(id!, 'Auto-save')
@@ -362,7 +366,7 @@ export function DocumentEditPage() {
 
       if (isModShortcut(e, 'KeyS')) {
         e.preventDefault()
-        if (hasChanges) handleSave()
+        handleSave()
       } else if (isModShortcut(e, 'KeyH')) {
         e.preventDefault()
         window.document.dispatchEvent(new CustomEvent('format-command', { detail: { action: 'find' } }))
@@ -440,7 +444,8 @@ export function DocumentEditPage() {
 
           <button
             onClick={handleSave}
-            disabled={!hasChanges || isCommitting}
+            disabled={isCommitting}
+            title="Сохранить документ"
             className="btn btn-sm btn-primary"
           >
             {isCommitting ? 'Saving...' : 'Save'}

@@ -134,6 +134,10 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
 
   const handleSave = useCallback(async () => {
     if (!sceneRef.current) return
+    if (!hasChanges) {
+      createToast(setToasts, 'Нет несохранённых изменений', 'info')
+      return
+    }
     try {
       setIsSaving(true)
       const content = serializeSceneForSave(sceneRef.current)
@@ -156,7 +160,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
     } finally {
       setIsSaving(false)
     }
-  }, [documentId, usesGit])
+  }, [documentId, usesGit, hasChanges])
 
   const handleCommit = async () => {
     if (!commitMessage.trim()) {
@@ -241,7 +245,7 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
     function handleKeyDown(e: KeyboardEvent) {
       if (isModShortcut(e, 'KeyS')) {
         e.preventDefault()
-        if (hasChanges) void handleSave()
+        void handleSave()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -303,7 +307,8 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
 
               <button
                 onClick={() => void handleSave()}
-                disabled={!hasChanges || isSaving || isCommitting}
+                disabled={isSaving || isCommitting}
+                title="Сохранить диаграмму"
                 className="btn btn-sm btn-primary"
               >
                 {isSaving ? 'Saving...' : 'Save'}
