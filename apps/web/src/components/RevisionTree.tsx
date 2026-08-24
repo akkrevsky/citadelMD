@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api-client.js'
+import { IconChevronRight, IconHistory } from './icons'
 import './RevisionTree.css'
 
 export interface Revision {
@@ -154,9 +155,14 @@ export function RevisionTree({ documentId, refreshToken = 0, onRestore }: Revisi
 
   if (revisions.length === 0 && !uncommittedDiff) {
     return (
-      <p className="revision-empty">
-        Коммитов пока нет. Сохраните или закоммитьте документ, чтобы появилась история.
-      </p>
+      <div className="revision-empty-state">
+        <div className="revision-empty-icon">
+          <IconHistory />
+        </div>
+        <p className="revision-empty">
+          Коммитов пока нет. Сохраните или закоммитьте документ, чтобы появилась история.
+        </p>
+      </div>
     )
   }
 
@@ -168,7 +174,9 @@ export function RevisionTree({ documentId, refreshToken = 0, onRestore }: Revisi
             className="revision-header"
             onClick={() => toggleDiff('uncommitted')}
           >
-            <span className="revision-chevron">{expandedKey === 'uncommitted' ? '▼' : '▶'}</span>
+            <IconChevronRight
+              className={`revision-chevron${expandedKey === 'uncommitted' ? ' open' : ''}`}
+            />
             <span className="revision-sha">WIP</span>
             <span className="revision-message">Незакоммиченные изменения</span>
             <span className="revision-diff-stats">
@@ -197,7 +205,7 @@ export function RevisionTree({ documentId, refreshToken = 0, onRestore }: Revisi
               className="revision-header"
               onClick={() => toggleDiff(rev.sha, rev.sha)}
             >
-              <span className="revision-chevron">{isExpanded ? '▼' : '▶'}</span>
+              <IconChevronRight className={`revision-chevron${isExpanded ? ' open' : ''}`} />
               <span className="revision-sha">{rev.sha.substring(0, 7)}</span>
               <span className="revision-message" title={rev.message}>{rev.message}</span>
               <span className="revision-author">{rev.authorName}</span>
@@ -208,7 +216,7 @@ export function RevisionTree({ documentId, refreshToken = 0, onRestore }: Revisi
                   {diff.removed > 0 && <span className="diff-removed">-{diff.removed}</span>}
                 </span>
               )}
-              {diffLoading === rev.sha && <span className="loading">…</span>}
+              {diffLoading === rev.sha && <span className="revision-loading">…</span>}
             </div>
 
             {isExpanded && (
