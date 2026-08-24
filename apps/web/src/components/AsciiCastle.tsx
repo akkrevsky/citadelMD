@@ -46,6 +46,26 @@ for (let i = 0; i < TOWERS.length; i++) {
 
 export function AsciiCastle() {
   const screenRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Scale the fixed-size frame down to fit narrow screens (mobile).
+  useEffect(() => {
+    const screen = screenRef.current
+    const wrap = wrapRef.current
+    if (!screen || !wrap) return
+
+    function fit() {
+      const scale = Math.min(1, wrap!.clientWidth / screen!.scrollWidth)
+      screen!.style.transform = `scale(${scale})`
+      screen!.style.transformOrigin = 'top left'
+      wrap!.style.height = `${screen!.scrollHeight * scale}px`
+    }
+
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(wrap)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     const screen = screenRef.current
@@ -271,5 +291,9 @@ export function AsciiCastle() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  return <div ref={screenRef} className="ascii-castle" aria-hidden="true" />
+  return (
+    <div ref={wrapRef} className="ascii-castle-wrap">
+      <div ref={screenRef} className="ascii-castle" aria-hidden="true" />
+    </div>
+  )
 }

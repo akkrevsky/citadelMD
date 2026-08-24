@@ -697,7 +697,7 @@ function DashboardWithTabs() {
           data-scrolling={navScrolling ? 'true' : undefined}
           onScroll={onNavScroll}
         >
-          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
+          <NavLink to="/" end state={{ home: true }} className={({ isActive }) => (isActive ? 'active' : '')}>
             Dashboard
           </NavLink>
           {user.role === 'ADMIN' && (
