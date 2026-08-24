@@ -32,6 +32,7 @@
   --color-scrollbar: #30363d;
   --color-scrollbar-hover: #484f58;
   --color-selection: #264f78;
+  --ascii-galaxy-color: #c9d1ff;
   --color-code-bg: #1f2937;
   --color-blockquote-bg: #161b22;
   --color-blockquote-border: #30363d;
@@ -114,6 +115,7 @@
   --color-scrollbar: #c1c7cd;
   --color-scrollbar-hover: #a1a7ad;
   --color-selection: #a3c9f1;
+  --ascii-galaxy-color: #2a3f8f;
   --color-code-bg: #eaeef2;
   --color-blockquote-bg: #f6f8fa;
   --color-blockquote-border: #d0d7de;
@@ -1696,7 +1698,7 @@ select:focus {
 }
 
 .ascii-galaxy {
-  color: #c9d1ff;
+  color: var(--ascii-galaxy-color);
   font-family: var(--font-mono);
   font-size: 10px;
   line-height: 10px;
