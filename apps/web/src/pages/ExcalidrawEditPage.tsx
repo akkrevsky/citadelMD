@@ -339,10 +339,10 @@ export function ExcalidrawEditPage({ documentId, initialDoc }: ExcalidrawEditPag
                 {doc.updatedAt && (
                   <span className="document-updated-at">{formatUpdatedAt(doc.updatedAt)}</span>
                 )}
+                <span className="document-path" title={fullTitlePath}>
+                  {fullTitlePath}
+                </span>
               </div>
-              <span className="document-path" title={fullTitlePath}>
-                {fullTitlePath}
-              </span>
             </div>
           </div>
 
