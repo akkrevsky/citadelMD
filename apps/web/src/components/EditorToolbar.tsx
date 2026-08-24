@@ -8,15 +8,6 @@ interface EditorToolbarProps {
   onFormat: (type: string) => void
   wordWrap?: boolean
   onToggleWrap?: () => void
-  onSave?: () => void
-  saveBusy?: boolean
-  onCommit?: () => void
-  commitMessage?: string
-  onCommitMessageChange?: (value: string) => void
-  commitBusy?: boolean
-  onDiscard?: () => void
-  discardDisabled?: boolean
-  onShare?: () => void
   fileName?: string
   theme?: 'dark' | 'light'
   onToggleTheme?: () => void
@@ -115,15 +106,6 @@ export function EditorToolbar({
   onFormat,
   wordWrap = false,
   onToggleWrap,
-  onSave,
-  saveBusy = false,
-  onCommit,
-  commitMessage = '',
-  onCommitMessageChange,
-  commitBusy = false,
-  onDiscard,
-  discardDisabled = true,
-  onShare,
   theme = 'dark',
   onToggleTheme,
   showHistory = false,
@@ -216,56 +198,6 @@ export function EditorToolbar({
 
       {/* View mode toggle — keep onClick (no selection interaction) */}
       <div className="toolbar-right">
-        {(onSave || onCommit || onDiscard || onShare) && (
-          <div className="toolbar-actions-group">
-            {onSave && (
-              <button
-                className="view-mode-btn toolbar-save-btn"
-                onClick={onSave}
-                disabled={saveBusy}
-                title="Сохранить документ"
-              >
-                Save
-              </button>
-            )}
-            {onCommit && (
-              <div className="toolbar-commit-section">
-                <input
-                  type="text"
-                  placeholder="Commit message"
-                  value={commitMessage}
-                  onChange={(e) => onCommitMessageChange?.(e.target.value)}
-                  disabled={commitBusy}
-                />
-                <button
-                  className="view-mode-btn"
-                  onClick={onCommit}
-                  disabled={commitBusy || !commitMessage.trim()}
-                  title="Закоммитить с сообщением"
-                >
-                  Commit
-                </button>
-              </div>
-            )}
-            {onDiscard && (
-              <button
-                className="view-mode-btn"
-                onClick={onDiscard}
-                disabled={discardDisabled}
-                title="Отменить несохранённые изменения"
-              >
-                Discard
-              </button>
-            )}
-            {onShare && (
-              <button className="view-mode-btn" onClick={onShare} title="Поделиться">
-                Share
-              </button>
-            )}
-            <div className="toolbar-divider" />
-          </div>
-        )}
-
         {onToggleWrap && (
           <button
             className={`view-mode-btn wrap-toggle-btn${wordWrap ? ' active' : ''}`}
