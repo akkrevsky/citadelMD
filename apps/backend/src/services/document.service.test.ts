@@ -218,6 +218,19 @@ describe('DocumentService', () => {
       expect(parsed.elements).toEqual([])
     })
 
+    it('should create document with custom initial content (import)', async () => {
+      const result = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Imported',
+        createdById: testUserId,
+        initialContent: '# Imported\n\nbody text',
+      })
+
+      expect(result.filePath).toBe('test-folder/imported.md')
+      const content = await fs.readFile(path.join(testRepoPath, result.filePath), 'utf8')
+      expect(content).toBe('# Imported\n\nbody text')
+    })
+
     it('should sanitize title for filename', async () => {
       const input = {
         folderId: testFolderId,

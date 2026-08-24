@@ -363,6 +363,126 @@ describe('Document Routes', () => {
     })
   })
 
+  describe('POST /api/folders/:folderId/import', () => {
+    function multipartBody(fields: Array<{ name: string; value?: string; filename?: string; contentType?: string }>, boundary: string) {
+      let body = ''
+      for (const f of fields) {
+        body += `--${boundary}\r\n`
+        if (f.filename) {
+          body += `Content-Disposition: form-data; name="${f.name}"; filename="${f.filename}"\r\n`
+          body += `Content-Type: ${f.contentType ?? 'application/octet-stream'}\r\n\r\n`
+          body += (f.value ?? '') + '\r\n'
+        } else {
+          body += `Content-Disposition: form-data; name="${f.name}"\r\n\r\n`
+          body += (f.value ?? '') + '\r\n'
+        }
+      }
+      body += `--${boundary}--\r\n`
+      return body
+    }
+
+    it('imports a markdown file as a new document', async () => {
+      mockDocumentService.createDocument.mockResolvedValue({
+        id: 'doc-imported',
+        title: 'notes',
+        filePath: 'folder/notes.md',
+        kind: 'MARKDOWN',
+      })
+
+      const boundary = 'test-boundary-123'
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/folders/folder-123/import',
+        headers: {
+          authorization: 'Bearer test-token',
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: multipartBody(
+          [
+            {
+              name: 'file',
+              filename: 'notes.md',
+              contentType: 'text/markdown',
+              value: '# Hi',
+            },
+          ],
+          boundary,
+        ),
+      })
+
+      expect(response.statusCode).toBe(201)
+      expect(mockDocumentService.createDocument).toHaveBeenCalledWith({
+        folderId: 'folder-123',
+        title: 'notes',
+        createdById: 'user-123',
+        kind: 'MARKDOWN',
+        initialContent: '# Hi',
+      })
+      expect(JSON.parse(response.body).id).toBe('doc-imported')
+    })
+
+    it('rejects non-text mime types', async () => {
+      const boundary = 'test-boundary-456'
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/folders/folder-123/import',
+        headers: {
+          authorization: 'Bearer test-token',
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: multipartBody(
+          [{ name: 'file', filename: 'photo.png', contentType: 'image/png', value: '\x89PNG' }],
+          boundary,
+        ),
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.code).toBe('INVALID_MIME')
+      expect(mockDocumentService.createDocument).not.toHaveBeenCalled()
+    })
+
+    it('rejects a request without a file', async () => {
+      const boundary = 'test-boundary-789'
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/folders/folder-123/import',
+        headers: {
+          authorization: 'Bearer test-token',
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: multipartBody([], boundary),
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(JSON.parse(response.body).error.code).toBe('NO_FILE')
+    })
+
+    it('passes document-exists conflicts through', async () => {
+      mockDocumentService.createDocument.mockRejectedValue(
+        Object.assign(new Error('Document with this title already exists in the folder'), {
+          statusCode: 409,
+        }),
+      )
+
+      const boundary = 'test-boundary-abc'
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/folders/folder-123/import',
+        headers: {
+          authorization: 'Bearer test-token',
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: multipartBody(
+          [{ name: 'file', filename: 'dup.md', contentType: 'text/markdown', value: '# Dup' }],
+          boundary,
+        ),
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect(JSON.parse(response.body).error.code).toBe('DOCUMENT_EXISTS')
+    })
+  })
+
   describe('DELETE /api/documents/:id', () => {
     it('should delete document successfully', async () => {
       mockDocumentService.deleteDocument.mockResolvedValue(undefined)

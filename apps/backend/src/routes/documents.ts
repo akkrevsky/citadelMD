@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import multipart from '@fastify/multipart'
 import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { getDocumentService } from '../services/document.service.js'
 import { assertFolderPermission, getDocumentFolderId } from '../services/authz.js'
@@ -12,7 +13,78 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
 
   const documentService = getDocumentService()
 
+  // Import endpoint accepts multipart file uploads (encapsulated here —
+  // upload.routes.ts registers its own multipart instance).
+  await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024, files: 1 } })
+
   // ========== Document CRUD ==========
+
+  // POST /api/folders/:folderId/import - Create a document from an uploaded file
+  app.post('/api/folders/:folderId/import', async (request, reply) => {
+    const { folderId } = request.params as { folderId: string }
+
+    try {
+      const data = await request.file()
+      if (!data) {
+        return reply.status(400).send({
+          error: { code: 'NO_FILE', message: 'No file provided' },
+        })
+      }
+
+      const mimeType = data.mimetype
+      const isText = mimeType === 'text/markdown' || mimeType === 'text/plain'
+      const isOctetWithTextExt =
+        mimeType === 'application/octet-stream' && /\.(md|txt)$/i.test(data.filename)
+      if (!isText && !isOctetWithTextExt) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_MIME',
+            message: `MIME type ${mimeType} not allowed for import`,
+          },
+        })
+      }
+
+      const title = titleFromFileName(data.filename)
+      if (!title) {
+        return reply.status(400).send({
+          error: { code: 'BAD_REQUEST', message: 'Invalid file name' },
+        })
+      }
+
+      await assertFolderPermission(request.user!.sub, request.user!.role, folderId, 'EDIT')
+
+      const buffer = await data.toBuffer()
+      const content = buffer.toString('utf8').replace(/^\uFEFF/, '')
+
+      const document = await documentService.createDocument({
+        folderId,
+        title,
+        createdById: request.user!.sub,
+        kind: 'MARKDOWN',
+        initialContent: content,
+      })
+
+      return reply.status(201).send(document)
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      const status = e.statusCode ?? 500
+      let code: string
+      if (status === 404) {
+        code = 'FOLDER_NOT_FOUND'
+      } else if (status === 409) {
+        code = 'DOCUMENT_EXISTS'
+      } else if (status === 413) {
+        code = 'FILE_TOO_LARGE'
+      } else if (status === 400) {
+        code = 'BAD_REQUEST'
+      } else {
+        code = 'IMPORT_ERROR'
+      }
+      return reply.status(status).send({
+        error: { code, message: e.message },
+      })
+    }
+  })
 
   // POST /api/folders/:folderId/documents - Create document
   app.post('/api/folders/:folderId/documents', async (request, reply) => {
@@ -598,4 +670,11 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
       })
     }
   })
+}
+
+/** Derive a document title from an imported file name (extension stripped). */
+function titleFromFileName(fileName: string): string {
+  const base = fileName.replace(/\.(md|txt)$/i, '')
+  const trimmed = base.trim().slice(0, 200)
+  return trimmed || 'untitled'
 }

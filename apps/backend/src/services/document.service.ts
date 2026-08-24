@@ -16,6 +16,8 @@ export interface CreateDocumentInput {
   title: string
   createdById: string
   kind?: 'MARKDOWN' | 'EXCALIDRAW'
+  /** Override the default initial content (used by file import). */
+  initialContent?: string
 }
 
 export interface UpdateDocumentInput {
@@ -101,7 +103,8 @@ export class DocumentService {
     // Create document with file lock
     return withFileLock(filePath, async () => {
       const initialContent =
-        kind === 'EXCALIDRAW'
+        input.initialContent ??
+        (kind === 'EXCALIDRAW'
           ? JSON.stringify(
               {
                 type: 'excalidraw',
@@ -114,7 +117,7 @@ export class DocumentService {
               null,
               2,
             )
-          : `# ${title}\n\n`
+          : `# ${title}\n\n`)
       await fs.writeFile(fullPath, initialContent, 'utf8')
 
       if (folder.mode === 'GIT') {
