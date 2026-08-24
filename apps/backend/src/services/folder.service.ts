@@ -68,7 +68,14 @@ async function resolveGitPath(parentId: string | null, name: string): Promise<st
   if (!parent) {
     throw Object.assign(new Error('Parent folder not found'), { statusCode: 404 })
   }
-  return `${parent.gitPath}/${name}`
+  return joinGitPath(parent.gitPath, name)
+}
+
+// The root folder has gitPath '/'; joining naively would produce '/name',
+// which git rejects as an invalid path.
+function joinGitPath(parentPath: string, name: string): string {
+  const base = parentPath === '/' ? '' : parentPath
+  return base ? `${base}/${name}` : name
 }
 
 /**
@@ -250,7 +257,7 @@ export async function renameFolder(folderId: string, input: UpdateFolderInput, u
     ? await prisma.folder.findUnique({ where: { id: parentId } })
     : null
   const newGitPath = parent
-    ? `${parent.gitPath}/${newName}`
+    ? joinGitPath(parent.gitPath, newName)
     : newName
 
   // Check for duplicate name under same parent
