@@ -14,9 +14,32 @@ import { TabContextMenu } from '../components/TabContextMenu'
 import { MoveDocumentDialog } from '../components/MoveDocumentDialog'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { findFirstDocument, collectDocumentIds, findFirstFolder } from '../utils/tree'
+import { IconChevronRight, IconFolder, IconFile } from '../components/icons'
 import logo from '../assets/logo.png'
 
 const LAST_DOC_KEY = 'citadelmd-last-opened-id'
+
+// OpenViking-style tree metrics: per-level indent, base row padding, guide line offset
+const TREE_INDENT = 16
+const TREE_ROW_PADDING = 6
+const TREE_GUIDE_OFFSET = 8
+
+const COLLAPSED_FOLDERS_KEY = 'citadelmd-sidebar-collapsed-folders'
+
+// VS Code-like vertical indent guides running through the subtree of each node
+function TreeIndentGuides({ depth }: { depth: number }) {
+  if (depth <= 0) return null
+  return (
+    <div className="tree-guides" aria-hidden="true">
+      {Array.from({ length: depth }, (_, i) => (
+        <span
+          key={i}
+          style={{ left: `${TREE_ROW_PADDING + i * TREE_INDENT + TREE_GUIDE_OFFSET}px` }}
+        />
+      ))}
+    </div>
+  )
+}
 
 export interface DashboardContext {
   selectedFolderId: string | null
@@ -64,6 +87,18 @@ function DashboardWithTabs() {
   const [createMode, setCreateMode] = useState<CreateMode>(null)
   const [newFolderName, setNewFolderName] = useState('')
   const [newDocTitle, setNewDocTitle] = useState('')
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSED_FOLDERS_KEY)
+      if (raw) return new Set(JSON.parse(raw) as string[])
+    } catch {
+      // fall through to the default
+    }
+    return new Set()
+  })
+  const [navScrolling, setNavScrolling] = useState(false)
+  const navScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const selectedFolderRowRef = useRef<HTMLDivElement | null>(null)
 
   const {
     openPreview,
@@ -95,9 +130,61 @@ function DashboardWithTabs() {
     })
   }
 
+  function toggleFolder(id: string) {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      localStorage.setItem(COLLAPSED_FOLDERS_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  function onNavScroll() {
+    setNavScrolling(true)
+    if (navScrollTimer.current) clearTimeout(navScrollTimer.current)
+    navScrollTimer.current = setTimeout(() => setNavScrolling(false), 700)
+  }
+
+  // Keep the selected folder row in view, like OpenViking's scrollIntoView
+  useEffect(() => {
+    if (!selectedFolderId) return
+    const frame = requestAnimationFrame(() => {
+      selectedFolderRowRef.current?.scrollIntoView({ block: 'nearest' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [selectedFolderId])
+
   useEffect(() => {
     return onDocumentStateChange(() => setDocStateTick((n) => n + 1))
   }, [])
+
+  useEffect(() => {
+    return () => {
+      if (navScrollTimer.current) clearTimeout(navScrollTimer.current)
+    }
+  }, [])
+
+  // Drop collapsed ids for folders that no longer exist
+  useEffect(() => {
+    if (tree.length === 0) return
+    const ids = new Set<string>()
+    function walk(nodes: TreeItem[]) {
+      for (const node of nodes) {
+        if (node.type === 'folder') ids.add(node.id)
+        if (node.children) walk(node.children)
+      }
+    }
+    walk(tree)
+    setCollapsedFolders((prev) => {
+      const stale = [...prev].filter((id) => !ids.has(id))
+      if (stale.length === 0) return prev
+      const next = new Set(prev)
+      for (const id of stale) next.delete(id)
+      localStorage.setItem(COLLAPSED_FOLDERS_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }, [tree])
 
   useEffect(() => {
     api
@@ -199,14 +286,33 @@ function DashboardWithTabs() {
     return items.map((item) => {
       if (item.type === 'folder') {
         const folderPath = parentPath ? `${parentPath}/${item.name}` : item.name
+        const isOpen = !collapsedFolders.has(item.id)
+        const isSelected = selectedFolderId === item.id
         return (
-          <div key={item.id}>
+          <div key={item.id} className="tree-node">
+            <TreeIndentGuides depth={depth} />
             <div
-              className={`tree-item folder${selectedFolderId === item.id ? ' active' : ''}`}
-              style={{ paddingLeft: `${0.75 + depth * 0.75}rem` }}
-              onClick={() => setSelectedFolderId(item.id)}
+              ref={isSelected ? selectedFolderRowRef : undefined}
+              className={`tree-row folder${isSelected ? ' active' : ''}`}
+              style={{ paddingLeft: `${TREE_ROW_PADDING + depth * TREE_INDENT}px` }}
+              onClick={() => {
+                setSelectedFolderId(item.id)
+                if (!isOpen) toggleFolder(item.id)
+              }}
             >
-              <span className="tree-item-label">{item.name}</span>
+              <button
+                type="button"
+                className="tree-chevron"
+                title={isOpen ? 'Collapse' : 'Expand'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleFolder(item.id)
+                }}
+              >
+                <IconChevronRight className={isOpen ? 'open' : ''} />
+              </button>
+              <IconFolder className={`tree-icon${isOpen ? ' open' : ''}`} />
+              <span className="tree-row-label">{item.name}</span>
               <button
                 className="tree-item-action"
                 title="Folder settings"
@@ -222,7 +328,7 @@ function DashboardWithTabs() {
                 ⚙
               </button>
             </div>
-            {item.children && renderTree(item.children, depth + 1, folderPath)}
+            {isOpen && item.children ? renderTree(item.children, depth + 1, folderPath) : null}
           </div>
         )
       }
@@ -236,12 +342,13 @@ function DashboardWithTabs() {
       return (
         <div
           key={item.id}
-          className={`tree-item document${isActive ? ' active' : ''}${unsaved ? ' doc-unsaved' : ''}${uncommitted ? ' doc-uncommitted' : ''}`}
-          style={{ paddingLeft: `${0.75 + depth * 0.75}rem` }}
+          className={`tree-node${isActive ? ' doc-active' : ''}`}
         >
+          <TreeIndentGuides depth={depth} />
           <a
             href={`/documents/${item.id}/edit`}
-            className="document-link"
+            className={`tree-row document${unsaved ? ' doc-unsaved' : ''}${uncommitted ? ' doc-uncommitted' : ''}`}
+            style={{ paddingLeft: `${TREE_ROW_PADDING + depth * TREE_INDENT}px` }}
             title={docPath}
             onClick={(e) => {
               e.preventDefault()
@@ -252,7 +359,9 @@ function DashboardWithTabs() {
               openDoc(item, true)
             }}
           >
-            <span className="document-name">
+            <span className="tree-chevron-spacer" aria-hidden="true" />
+            <IconFile className="tree-icon file" />
+            <span className="tree-row-label">
               {unsaved && <span className="doc-state-marker">*</span>}
               {item.kind === 'EXCALIDRAW' && <span className="doc-kind-icon" title="Diagram">D </span>}
               {item.name}
@@ -296,7 +405,11 @@ function DashboardWithTabs() {
           </div>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav
+          className="sidebar-nav scrollbar-fade"
+          data-scrolling={navScrolling ? 'true' : undefined}
+          onScroll={onNavScroll}
+        >
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
             Dashboard
           </NavLink>

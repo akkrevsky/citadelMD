@@ -160,6 +160,37 @@ html, body, #root {
   height: 10px;
 }
 
+/* Transient scrollbar (OpenViking style): hidden until hover or scroll */
+.scrollbar-fade {
+  scrollbar-width: none;
+  scrollbar-color: var(--color-scrollbar) transparent;
+}
+
+.scrollbar-fade::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-fade:is(:hover, :focus-within, [data-scrolling='true']) {
+  scrollbar-width: thin;
+}
+
+.scrollbar-fade:is(:hover, :focus-within, [data-scrolling='true'])::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.scrollbar-fade:is(:hover, :focus-within, [data-scrolling='true'])::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.scrollbar-fade:is(:hover, :focus-within, [data-scrolling='true'])::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-track {
   background: var(--color-bg);
 }
@@ -478,27 +509,121 @@ select:focus {
   font-weight: 700;
 }
 
-.tree-item {
-  padding: 0.3rem 1rem 0.3rem 2rem;
-  font-size: 0.85rem;
-  color: var(--color-text);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: background 0.1s;
+/* Sidebar tree rows (OpenViking style): compact mono rows with indent guides */
+
+.tree-node {
+  position: relative;
+  min-width: 0;
 }
 
-.tree-item:hover {
-  background: var(--color-bg);
+.tree-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.tree-item.folder {
-  font-weight: 600;
+.tree-guides span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+  opacity: 0.7;
+}
+
+.tree-row {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.25rem;
+  gap: 0.375rem;
+  height: 28px;
+  margin: 0 0.25rem;
+  padding-right: 0.375rem;
+  border-radius: 0.375rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.1s, color 0.1s;
+}
+
+.tree-row:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.tree-row.folder.active {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.tree-chevron:hover {
+  color: var(--color-text);
+}
+
+.tree-chevron svg {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.15s ease;
+}
+
+.tree-chevron svg.open {
+  transform: rotate(90deg);
+}
+
+.tree-chevron-spacer {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tree-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: color 0.1s;
+}
+
+.tree-icon.open {
+  color: var(--color-primary);
+}
+
+.tree-icon.file {
+  color: var(--color-text-dim);
+}
+
+.tree-row-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-row.folder .tree-row-label {
+  font-weight: 600;
 }
 
 .tree-item-action {
@@ -509,9 +634,10 @@ select:focus {
   font-size: 0.75rem;
   padding: 0 0.25rem;
   opacity: 0;
+  flex-shrink: 0;
 }
 
-.tree-item.folder:hover .tree-item-action {
+.tree-row:hover .tree-item-action {
   opacity: 1;
 }
 
@@ -548,16 +674,20 @@ select:focus {
   border-color: var(--color-primary);
 }
 
-.tree-item.document.active .document-name {
-  color: var(--color-primary);
-  font-weight: 600;
+.tree-node.doc-active .tree-row {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
 }
 
-.tree-item.document.doc-unsaved .document-name {
+.tree-node.doc-active .tree-icon.file {
+  color: var(--color-primary);
+}
+
+.tree-row.document.doc-unsaved .tree-row-label {
   font-weight: 700;
 }
 
-.tree-item.document.doc-uncommitted {
+.tree-row.document.doc-uncommitted {
   background: rgba(210, 153, 34, 0.08);
 }
 
@@ -693,25 +823,10 @@ select:focus {
   max-width: 480px;
 }
 
-.tree-item.document {
-  padding-left: 2.5rem;
-  color: var(--color-text-muted);
-}
-
-.tree-item.document .document-link {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.tree-item.document .document-name {
-  color: var(--color-text);
-}
-
 .doc-created-at {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  opacity: 0.7;
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--color-text-dim);
   font-variant-numeric: tabular-nums;
 }
 
@@ -738,37 +853,6 @@ select:focus {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin: 0 0 0.75rem 0;
-}
-
-.tree-item.document .document-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-}
-
-.document-actions {
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.tree-item.document:hover .document-actions {
-  opacity: 1;
-}
-
-.document-edit-link {
-  color: var(--color-primary);
-  text-decoration: none;
-  font-size: 0.875rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
-  background: var(--color-primary-bg);
-  border: 1px solid var(--color-primary);
-}
-
-.document-edit-link:hover {
-  background: var(--color-primary);
-  color: white;
 }
 
 .tree-empty {
@@ -1630,13 +1714,6 @@ select:focus {
 
 [data-theme="light"] .login-page {
   background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%);
-}
-
-/* ---- Tree item active state ---- */
-
-.tree-item.folder.active {
-  background: var(--color-primary-bg);
-  color: var(--color-primary);
 }
 
 /* ---- Toast notifications ---- */

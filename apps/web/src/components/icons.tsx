@@ -48,3 +48,57 @@ export function IconDashboard() {
     </svg>
   )
 }
+
+// Tree icons (OpenViking style): stroke-based, 16x16, currentColor.
+
+export function IconChevronRight({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M6 4l4 4-4 4" />
+    </svg>
+  )
+}
+
+export function IconFolder({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.06c.43 0 .85.19 1.13.51l.84.98c.28.33.7.51 1.13.51h3.84A1.5 1.5 0 0 1 14 5.5v6A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5v-8Z" />
+    </svg>
+  )
+}
+
+export function IconFile({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M10 1.5H4A1.5 1.5 0 0 0 2.5 3v10A1.5 1.5 0 0 0 4 14.5h8a1.5 1.5 0 0 0 1.5-1.5V4.75L10 1.5Z" />
+      <path d="M10 1.5v3.25H13.5" />
+      <path d="M6.5 6.5h5M6.5 9h5M6.5 11.5h3" />
+    </svg>
+  )
+}
