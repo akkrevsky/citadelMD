@@ -8,19 +8,22 @@ import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-markdown'
+import taskLists from 'markdown-it-task-lists'
 import { excalidrawBlockPlugin } from './excalidraw-plugin.js'
 import 'katex/dist/katex.min.css'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
   ADD_ATTR: ['id'],
   ADD_TAGS: [
+    'input', // task-list checkboxes
     'svg', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon',
     'ellipse', 'g', 'defs', 'use', 'image', 'text', 'tspan', 'marker',
     'stop', 'linearGradient', 'radialGradient', 'clipPath', 'mask',
     'span', 'math', 'annotation',
   ],
   ALLOWED_ATTR: [
-    'class', 'id', 'href', 'src', 'alt', 'width', 'height',
+    'class', 'id', 'type', 'checked', 'disabled',
+    'href', 'src', 'alt', 'width', 'height',
     'viewBox', 'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
     'x', 'y', 'dx', 'dy', 'rx', 'ry', 'points', 'transform',
     'xmlns', 'preserveAspectRatio', 'style', 'aria-hidden',
@@ -51,6 +54,9 @@ export function getMarkdownIt(): MarkdownIt {
     },
   })
   md.use(texmath, { engine: katex, delimiters: 'dollars', katexOptions: { throwOnError: false } })
+  // Task lists: `- [ ]` / `- [x]`. Checkboxes are read-only in the preview
+  // (editing happens in the source pane).
+  md.use(taskLists, { enabled: false, label: true, labelAfter: true })
   md.use(excalidrawBlockPlugin)
   return md
 }

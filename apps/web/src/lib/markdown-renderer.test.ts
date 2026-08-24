@@ -81,3 +81,32 @@ describe('renderMarkdown — regression', () => {
     expect(html).not.toContain('<b')
   })
 })
+
+describe('renderMarkdown — task lists', () => {
+  it('renders unchecked and checked task items as checkboxes', () => {
+    const html = renderMarkdown('- [ ] todo\n- [x] done')
+    expect(html).toContain('task-list-item')
+    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('disabled')
+    expect(html).toContain('checked=""')
+    expect(html).toContain('todo')
+    expect(html).toContain('done')
+  })
+
+  it('wraps task text in a label', () => {
+    const html = renderMarkdown('- [x] finished')
+    expect(html).toContain('task-list-item-label')
+    expect(html).toContain('finished')
+  })
+
+  it('leaves regular bullet lists untouched', () => {
+    const html = renderMarkdown('- plain item')
+    expect(html).not.toContain('task-list-item')
+    expect(html).toContain('<li>plain item</li>')
+  })
+
+  it('strips event handlers from checkbox markup', () => {
+    const html = renderMarkdown('- [ ] <b onclick="x()">safe</b>')
+    expect(html).not.toContain('onclick')
+  })
+})
