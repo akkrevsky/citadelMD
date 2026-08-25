@@ -22,6 +22,7 @@ export interface FolderTreeNode {
   mode: 'GIT' | 'SNAPSHOT'
   parentId: string | null
   gitPath: string
+  ownerId: string | null
   permission: FolderPermissionLevel
   children: FolderTreeNode[]
   documents: {
@@ -80,6 +81,87 @@ function joinGitPath(parentPath: string, name: string): string {
   return base ? `${base}/${name}` : name
 }
 
+/** Sanitize a login into a filesystem-safe directory name (mirrors sanitizeFileName) */
+export function sanitizeLoginForGitPath(login: string): string {
+  const cleaned = login
+    .toLowerCase()
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+  return cleaned || 'user'
+}
+
+/**
+ * Provision the user's personal root folder (users/<login>) lazily.
+ * Idempotent and race-safe: concurrent callers converge on the same row.
+ */
+export async function ensurePersonalFolder(userId: string): Promise<FolderRow> {
+  const existing = await prisma.folder.findFirst({ where: { ownerId: userId } })
+  if (existing) return existing
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, login: true, gitName: true, gitEmail: true },
+  })
+  if (!user) {
+    throw Object.assign(new Error('User not found'), { statusCode: 404 })
+  }
+
+  // Login is immutable, so the path is stable for the user's lifetime;
+  // collisions between sanitized logins get a deterministic uuid suffix.
+  const base = `users/${sanitizeLoginForGitPath(user.login)}`
+  let gitPath = base
+  const suffixes = [userId.slice(0, 6), userId.replace(/-/g, '').slice(0, 8)]
+  for (const suffix of suffixes) {
+    const collision = await prisma.folder.findFirst({ where: { gitPath } })
+    if (!collision) break
+    gitPath = `${base}-${suffix}`
+  }
+  const stillCollides = await prisma.folder.findFirst({ where: { gitPath } })
+  if (stillCollides) {
+    throw Object.assign(new Error('Could not allocate a personal folder path'), { statusCode: 409 })
+  }
+
+  const repoPath = getGitRepoPath()
+  const authorName = user.gitName ?? user.login
+  const authorEmail = user.gitEmail ?? `${user.login}@mdcollab.local`
+
+  // Serialize the git dir creation with other filesystem writers
+  await withFileLock(gitPath, async () => {
+    const gitDir = path.join(repoPath, gitPath)
+    await fs.mkdir(gitDir, { recursive: true })
+    await fs.writeFile(path.join(gitDir, '.gitkeep'), '')
+    const git = new GitService(repoPath)
+    await git.commit(
+      `Create personal folder for ${user.login} [user:${user.login}]`,
+      { name: authorName, email: authorEmail },
+      [`${gitPath}/.gitkeep`],
+    )
+  })
+
+  try {
+    return await prisma.folder.create({
+      data: {
+        parentId: null,
+        name: user.login,
+        gitPath,
+        createdById: userId,
+        ownerId: userId,
+      },
+    })
+  } catch (err) {
+    // P2002: concurrent provisioning won the race — return the winner.
+    if ((err as { code?: string }).code === 'P2002') {
+      const winner = await prisma.folder.findFirst({ where: { ownerId: userId } })
+      if (winner) return winner
+    }
+    throw err
+  }
+}
+
 /**
  * Compute effective permission for a user on a given folder.
  * Algorithm: walk folder path root-to-node, gather all explicit permissions,
@@ -92,6 +174,14 @@ export async function getEffectivePermission(
 ): Promise<FolderPermissionLevel | null> {
   // Gather all folder IDs from this node up to root
   const folderIds = await collectFolderAncestors(folderId)
+
+  // Owning any folder in the ancestry (the user's personal root) implies
+  // full ADMIN over the whole subtree.
+  const owned = await prisma.folder.findFirst({
+    where: { id: { in: folderIds }, ownerId: userId },
+    select: { id: true },
+  })
+  if (owned) return 'ADMIN'
 
   // Fetch all permissions for this user on any folder in the path
   const permissions = await prisma.folderPermission.findMany({
@@ -137,6 +227,7 @@ export function computeEffectivePermissionFromAncestors(
   folderId: string,
   folderMap: Map<string, { id: string; parentId: string | null; name: string }>,
   permissionMap: Map<string, FolderPermissionLevel>,
+  ownedFolderIds?: Set<string>,
 ): FolderPermissionLevel | null {
   const currentPath: string[] = []
   let currentId: string | null = folderId
@@ -149,6 +240,10 @@ export function computeEffectivePermissionFromAncestors(
 
   let effective: FolderPermissionLevel | null = null
   for (const fid of currentPath) {
+    if (ownedFolderIds?.has(fid)) {
+      effective = 'ADMIN'
+      break
+    }
     const p = permissionMap.get(fid)
     if (p) {
       effective = effective === null ? p : maxPermission(effective, p)
@@ -167,6 +262,7 @@ interface FolderRow {
   mode: 'GIT' | 'SNAPSHOT'
   createdAt: Date
   createdById: string | null
+  ownerId: string | null
 }
 
 interface DocumentRow {
@@ -250,6 +346,11 @@ export async function renameFolder(folderId: string, input: UpdateFolderInput, u
   const folder = await prisma.folder.findUnique({ where: { id: folderId } })
   if (!folder) {
     throw Object.assign(new Error('Folder not found'), { statusCode: 404 })
+  }
+
+  // Personal roots are immutable: their gitPath is the user's stable home.
+  if (folder.ownerId) {
+    throw Object.assign(new Error('Personal folders cannot be renamed'), { statusCode: 403 })
   }
 
   const { name: newName } = input
@@ -344,6 +445,11 @@ export async function deleteFolder(folderId: string, userId: string) {
     throw Object.assign(new Error('Folder not found'), { statusCode: 404 })
   }
 
+  // Personal roots are immutable: they are the user's stable home.
+  if (folder.ownerId) {
+    throw Object.assign(new Error('Personal folders cannot be deleted'), { statusCode: 403 })
+  }
+
   const repoPath = getGitRepoPath()
   const git = new GitService(repoPath)
 
@@ -398,6 +504,10 @@ export async function deleteFolder(folderId: string, userId: string) {
 // ========== Tree ==========
 
 export async function getTree(userId: string, userRole: string): Promise<{ tree: FolderTreeNode[] }> {
+  // Everyone gets a personal root — provision it on first need (covers the
+  // web dashboard and the MCP server through the same funnel).
+  await ensurePersonalFolder(userId)
+
   // Admin sees everything
   if (userRole === 'ADMIN') {
     return buildFullTree()
@@ -438,6 +548,7 @@ async function buildFullTree(): Promise<{ tree: FolderTreeNode[] }> {
       mode: f.mode,
       parentId: f.parentId,
       gitPath: f.gitPath,
+      ownerId: f.ownerId,
       permission: 'ADMIN' as FolderPermissionLevel,
       children,
       documents,
@@ -471,17 +582,33 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
     orgDocsByFolder.set(d.folderId, arr)
   }
 
+  // Personal root + its whole subtree is owned: implied ADMIN for the owner
+  const personalRoot = allFolders.find((f) => f.ownerId === userId) ?? null
+  const ownedFolderIds = new Set<string>()
+  if (personalRoot) {
+    const queue = [personalRoot.id]
+    while (queue.length > 0) {
+      const fid = queue.pop()!
+      if (ownedFolderIds.has(fid)) continue
+      ownedFolderIds.add(fid)
+      for (const f of allFolders) {
+        if (f.parentId === fid) queue.push(f.id)
+      }
+    }
+  }
+
   // Build effective permission for each folder
   const effectivePermissions = new Map<string, FolderPermissionLevel | null>()
   for (const f of allFolders) {
     effectivePermissions.set(
       f.id,
-      computeEffectivePermissionFromAncestors(f.id, folderMap, permissionMap),
+      computeEffectivePermissionFromAncestors(f.id, folderMap, permissionMap, ownedFolderIds),
     )
   }
 
   // Only include folders where the user has an explicit permission in the
-  // ancestry (null means no access). Admins use buildFullTree instead.
+  // ancestry or owns the subtree (null means no access). Admins use
+  // buildFullTree instead.
   const accessibleFolderIds = new Set(
     [...effectivePermissions.entries()]
       .filter(([, perm]) => perm !== null)
@@ -510,7 +637,9 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
     const permission = effectivePermissions.get(f.id) ?? 'VIEW'
 
     // Only include folders that have either accessible children or documents
-    if (children.length === 0 && documents.length === 0) return null
+    // — except the personal root, which stays visible even when empty so the
+    // UI always has a creation target.
+    if (children.length === 0 && documents.length === 0 && f.id !== personalRoot?.id) return null
 
     return {
       id: f.id,
@@ -518,15 +647,21 @@ async function buildFilteredTree(userId: string): Promise<{ tree: FolderTreeNode
       mode: f.mode,
       parentId: f.parentId,
       gitPath: f.gitPath,
+      ownerId: f.ownerId,
       permission,
       children,
       documents,
     }
   }
 
+  // Roots are the topmost accessible nodes: the personal root plus any
+  // shared folder whose ancestors the user cannot see (rendered under its
+  // parent otherwise).
   const tree: FolderTreeNode[] = []
   for (const f of allFolders) {
-    if (f.parentId !== null) continue
+    if (!accessibleFolderIds.has(f.id)) continue
+    const parent = f.parentId ? folderMap.get(f.parentId) : null
+    if (parent && accessibleFolderIds.has(parent.id)) continue
     const node = buildNode(f)
     if (node !== null) tree.push(node)
   }
