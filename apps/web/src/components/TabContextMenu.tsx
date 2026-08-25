@@ -10,6 +10,8 @@ interface TabContextMenuProps {
   onCloseOthers: () => void
   onCloseLeft: () => void
   onCloseRight: () => void
+  onCopyLink: () => void
+  onCopyPath: () => void
 }
 
 export function TabContextMenu({
@@ -22,6 +24,8 @@ export function TabContextMenu({
   onCloseOthers,
   onCloseLeft,
   onCloseRight,
+  onCopyLink,
+  onCopyPath,
 }: TabContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
 
@@ -42,6 +46,8 @@ export function TabContextMenu({
     <div ref={ref} className="tab-context-menu" style={{ top: y, left: x }}>
       <button type="button" onClick={() => run(onRename)}>Rename</button>
       <button type="button" onClick={() => run(onMove)}>Move to folder</button>
+      <button type="button" onClick={() => run(onCopyLink)}>Копировать ссылку</button>
+      <button type="button" onClick={() => run(onCopyPath)}>Копировать путь</button>
       <button type="button" className="tab-context-menu-danger" onClick={() => run(onDelete)}>
         Delete
       </button>

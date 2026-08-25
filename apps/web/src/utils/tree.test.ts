@@ -1,45 +1,31 @@
 import { describe, it, expect } from 'vitest'
-import type { TreeItem } from '../api-client'
-import { collectSubtreeDocumentIds } from './tree'
+import { findDocumentItem } from './tree'
+import type { TreeItem } from '../api-client.js'
 
-function item(partial: Partial<TreeItem>): TreeItem {
-  return { id: 'x', name: 'x', type: 'document', ...partial }
+function item(id: string, children: TreeItem[] = []): TreeItem {
+  return { id, type: 'folder', name: id, parentId: null, children }
 }
 
-describe('collectSubtreeDocumentIds', () => {
-  it('collects documents from a folder subtree', () => {
-    const tree: TreeItem[] = [
-      item({
-        id: 'f1',
-        name: 'Root',
-        type: 'folder',
-        children: [
-          item({ id: 'd1', name: 'doc1', type: 'document' }),
-          item({
-            id: 'f2',
-            name: 'Sub',
-            type: 'folder',
-            children: [
-              item({ id: 'd2', name: 'doc2', type: 'document' }),
-              item({
-                id: 'f3',
-                name: 'Deep',
-                type: 'folder',
-                children: [item({ id: 'd3', name: 'doc3', type: 'document' })],
-              }),
-            ],
-          }),
-        ],
-      }),
-      item({ id: 'f4', name: 'Other', type: 'folder', children: [item({ id: 'd4', name: 'doc4', type: 'document' })] }),
-    ]
+const doc = (id: string): TreeItem => ({ id, type: 'document', name: id, parentId: null })
 
-    expect(collectSubtreeDocumentIds(tree, 'f2')).toEqual(new Set(['d2', 'd3']))
-    expect(collectSubtreeDocumentIds(tree, 'f1')).toEqual(new Set(['d1', 'd2', 'd3']))
-    expect(collectSubtreeDocumentIds(tree, 'f4')).toEqual(new Set(['d4']))
+describe('findDocumentItem', () => {
+  it('finds a nested document', () => {
+    const tree: TreeItem[] = [
+      item('f1', [item('f2', [doc('d1'), doc('d2')])]),
+      doc('d3'),
+    ]
+    expect(findDocumentItem(tree, 'd2')?.id).toBe('d2')
+    expect(findDocumentItem(tree, 'd3')?.id).toBe('d3')
   })
 
-  it('returns an empty set for an unknown folder', () => {
-    expect(collectSubtreeDocumentIds([], 'missing')).toEqual(new Set())
+  it('returns null for unknown ids', () => {
+    const tree: TreeItem[] = [item('f1', [doc('d1')])]
+    expect(findDocumentItem(tree, 'nope')).toBeNull()
+    expect(findDocumentItem([], 'd1')).toBeNull()
+  })
+
+  it('does not match folders', () => {
+    const tree: TreeItem[] = [item('f1', [doc('d1')])]
+    expect(findDocumentItem(tree, 'f1')).toBeNull()
   })
 })

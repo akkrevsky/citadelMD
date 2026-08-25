@@ -10,6 +10,7 @@ import {
   onDocumentStateChange,
 } from '../utils/unsaved'
 import { TabsProvider, useTabs } from '../contexts/TabsContext'
+import { useTheme } from '../hooks/useTheme'
 import { FolderSettingsDialog } from '../components/FolderSettingsDialog'
 import { AssetsPanel } from '../components/AssetsPanel'
 import { TabContextMenu } from '../components/TabContextMenu'
@@ -20,8 +21,10 @@ import {
   findFirstDocument,
   collectDocumentIds,
   findFirstFolder,
+  findDocumentItem,
   collectSubtreeDocumentIds,
 } from '../utils/tree'
+import { copyText } from '../utils/clipboard.js'
 import { IconChevronRight, IconFolder, IconFile } from '../components/icons'
 import logo from '../assets/logo.png'
 import excalidrawLogo from '../assets/excalidraw-logo.png'
@@ -135,6 +138,7 @@ function DashboardWithTabs() {
     updateTabTitle,
     reorderTabs,
   } = useTabs()
+  const { theme, toggleTheme } = useTheme()
 
   const activeDocId =
     location.pathname.match(/^\/documents\/([^/]+)\/edit$/)?.[1] ?? activeTabId
@@ -283,6 +287,26 @@ function DashboardWithTabs() {
     if (activeDocId && affected.has(activeDocId)) navigate('/')
   }
 
+  async function handleCopyPath(item: TreeItem) {
+    try {
+      await copyText(item.filePath ?? item.name)
+      createToast(setToasts, 'Скопировано', 'success')
+    } catch {
+      // clipboard unavailable — ignore
+    }
+  }
+
+  async function handleCopyLink(item: TreeItem) {
+    const path = item.filePath ?? item.name
+    const dest = path.includes(' ') ? `<${path}>` : path
+    try {
+      await copyText(`[${item.name}](${dest})`)
+      createToast(setToasts, 'Скопировано', 'success')
+    } catch {
+      // clipboard unavailable — ignore
+    }
+  }
+
   function buildMenuItems(item: TreeItem): TreeMenuItem[] {
     if (item.type === 'folder') {
       const isRoot = item.folderGitPath === ''
@@ -324,6 +348,9 @@ function DashboardWithTabs() {
       { label: 'Rename', onSelect: () => setRenaming({ id: item.id, name: item.name }) },
       { label: 'Move to folder', onSelect: () => setMoveDoc({ id: item.id, title: item.name }) },
       { label: 'Export', onSelect: () => void handleExport(item) },
+      { separator: true },
+      { label: 'Копировать путь', onSelect: () => void handleCopyPath(item) },
+      { label: 'Копировать ссылку', onSelect: () => void handleCopyLink(item) },
       { separator: true },
       {
         label: 'Delete',
@@ -690,6 +717,22 @@ function DashboardWithTabs() {
             <img src={logo} alt="citadelMD" className="sidebar-logo" />
             {!sidebarCollapsed && <h2>citadelMD</h2>}
           </div>
+          <button
+            type="button"
+            className="toolbar-btn"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? (
+              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+                <path d="M8 1a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 1zm0 10a3 3 0 100-6 3 3 0 000 6zm0 1.5a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 018 12.5zm6.25-4.75a.75.75 0 000-1.5h-1.5a.75.75 0 000 1.5h1.5zM3.25 8a.75.75 0 01-.75.75H1a.75.75 0 010-1.5h1.5a.75.75 0 01.75.75zm9.72-4.97a.75.75 0 010 1.06l-1.06 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zM5.15 11.85a.75.75 0 010 1.06l-1.06 1.06a.75.75 0 11-1.06-1.06l1.06-1.06a.75.75 0 011.06 0zM4.97 3.15a.75.75 0 01-1.06 0L2.85 2.09a.75.75 0 111.06-1.06l1.06 1.06a.75.75 0 010 1.06zm6.88 8.7a.75.75 0 01-1.06-1.06l1.06-1.06a.75.75 0 111.06 1.06l-1.06 1.06z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+                <path d="M9.6 1.4a.75.75 0 00-.84-.17 6.5 6.5 0 103.5 8.93.75.75 0 00-1.04-1.02 4.5 4.5 0 11-3.2-7.44l.24-.2.34-.1z" />
+              </svg>
+            )}
+          </button>
         </div>
 
         <nav
@@ -877,6 +920,7 @@ function TabBarMain({
   previewTab,
   activeTabId,
   tree,
+
   onSelect,
   onClose,
   onCloseOthers,
@@ -899,6 +943,7 @@ function TabBarMain({
   onRename: (id: string, title: string) => void
   onRefreshTree: () => void
 }) {
+  const [toasts, setToasts] = useState<ToastData[]>([])
   const navigate = useNavigate()
   const [docStateTick, setDocStateTick] = useState(0)
   const [menu, setMenu] = useState<{ x: number; y: number; tabId: string; title: string } | null>(null)
@@ -1024,9 +1069,28 @@ function TabBarMain({
             onCloseOthers={() => onCloseOthers(menu.tabId)}
             onCloseLeft={() => onCloseLeft(menu.tabId)}
             onCloseRight={() => onCloseRight(menu.tabId)}
+            onCopyLink={() => {
+              const item = findDocumentItem(tree, menu.tabId)
+              const path = item?.filePath ?? menu.title
+              const dest = path.includes(' ') ? `<${path}>` : path
+              void copyText(`[${menu.title}](${dest})`).then(() =>
+                createToast(setToasts, 'Скопировано', 'success'),
+              )
+            }}
+            onCopyPath={() => {
+              const item = findDocumentItem(tree, menu.tabId)
+              void copyText(item?.filePath ?? menu.title).then(() =>
+                createToast(setToasts, 'Скопировано', 'success'),
+              )
+            }}
           />
         )}
       </div>
+
+      <ToastContainer
+        toasts={toasts}
+        onRemove={(toastId) => setToasts((prev) => prev.filter((t) => t.id !== toastId))}
+      />
 
       {moveTab && (
         <MoveDocumentDialog

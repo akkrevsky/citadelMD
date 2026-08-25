@@ -51,3 +51,15 @@ export function collectSubtreeDocumentIds(items: TreeItem[], folderId: string): 
   if (!folder?.children) return new Set()
   return collectDocumentIds(folder.children)
 }
+
+/** Find a document tree item by id (any depth). */
+export function findDocumentItem(items: TreeItem[], id: string): TreeItem | null {
+  for (const item of items) {
+    if (item.type === 'document' && item.id === id) return item
+    if (item.children) {
+      const found = findDocumentItem(item.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
