@@ -66,7 +66,9 @@ export class BackendClient {
   // ========== Tree / Folders ==========
 
   async getTree() {
-    return this.get('/api/tree')
+    const data = await this.get('/api/tree')
+    // Backend returns the tree under the `tree` key; tolerate a bare array too.
+    return Array.isArray(data) ? data : (data?.tree ?? [])
   }
 
   // ========== Documents ==========

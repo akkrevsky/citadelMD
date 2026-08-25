@@ -55,7 +55,7 @@ describe('BackendClient', () => {
   it('calls getTree with apiKey auth', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([{ id: 'root', name: 'Docs' }]),
+      json: () => Promise.resolve({ tree: [{ id: 'root', name: 'Docs' }] }),
     })
 
     const result = await client.getTree()
