@@ -166,4 +166,14 @@ describe('GitService', () => {
       await fs.rm(isolated, { recursive: true, force: true })
     }
   })
+
+  it('listTrackedFiles returns committed paths one per line', async () => {
+    await fs.mkdir(path.join(tmp, 'sub'), { recursive: true })
+    await fs.writeFile(path.join(tmp, 'sub', 'nested.md'), '# Nested')
+    await git.commit('Create nested', { name: 'Test', email: 'test@citadelmd.local' })
+
+    const files = await git.listTrackedFiles()
+    expect(files).toContain('doc1.md')
+    expect(files).toContain('sub/nested.md')
+  })
 })

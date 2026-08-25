@@ -182,6 +182,12 @@ export class GitService {
     }
   }
 
+  /** All paths tracked in the index (git ls-files), one per line */
+  async listTrackedFiles(): Promise<string[]> {
+    const raw = await this.git.raw(['ls-files'])
+    return raw.split('\n').filter((line) => line.length > 0)
+  }
+
   async remove(filePath: string): Promise<void> {
     await this.git.rm([filePath, '-r'])
   }
