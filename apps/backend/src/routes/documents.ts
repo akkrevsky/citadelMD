@@ -307,6 +307,43 @@ export async function documentRoutes(app: FastifyInstance): Promise<void> {
   // ========== Search ==========
 
   // GET /api/documents/search?q=<query>&folderId=<optional> — full-text search via git grep
+  // GET /api/documents/by-path?path=<filePath> — resolve a document by its
+  // git path (folder/name.md). Used by markdown internal links.
+  app.get('/api/documents/by-path', async (request, reply) => {
+    const { path } = request.query as { path?: string }
+
+    if (!path || typeof path !== 'string' || path.trim().length === 0) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Path query parameter is required' },
+      })
+    }
+
+    if (path.length > 500) {
+      return reply.status(400).send({
+        error: { code: 'BAD_REQUEST', message: 'Path must be 500 characters or fewer' },
+      })
+    }
+
+    try {
+      const document = await documentService.getDocumentByPath(path)
+      if (!document) {
+        return reply.status(404).send({
+          error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' },
+        })
+      }
+      await assertFolderPermission(request.user!.sub, request.user!.role, document.folderId, 'VIEW')
+      return reply.status(200).send({ id: document.id, title: document.title, kind: document.kind })
+    } catch (err: unknown) {
+      const e = err as Error & { statusCode?: number }
+      const status = e.statusCode ?? 500
+      let code: string
+      if (status === 404) code = 'DOCUMENT_NOT_FOUND'
+      else if (status === 403) code = 'FORBIDDEN'
+      else code = 'DOCUMENT_BY_PATH_ERROR'
+      return reply.status(status).send({ error: { code, message: e.message } })
+    }
+  })
+
   app.get('/api/documents/search', async (request, reply) => {
     const { q, folderId } = request.query as { q?: string; folderId?: string }
 

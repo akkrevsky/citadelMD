@@ -8,6 +8,7 @@ const mockDocumentService = {
   createDocument: vi.fn(),
   getDocument: vi.fn(),
   getDocumentContent: vi.fn(),
+  getDocumentByPath: vi.fn(),
   updateDocument: vi.fn(),
   deleteDocument: vi.fn(),
   moveDocument: vi.fn(),
@@ -360,6 +361,75 @@ describe('Document Routes', () => {
 
       expect(response.statusCode).toBe(400)
       expect(mockDocumentService.restoreToRevision).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('GET /api/documents/by-path', () => {
+    it('resolves a document by its file path', async () => {
+      mockDocumentService.getDocumentByPath.mockResolvedValue({
+        id: 'doc-123',
+        title: 'Note',
+        kind: 'MARKDOWN',
+        folderId: 'folder-1',
+      })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/documents/by-path?path=${encodeURIComponent('folder/note.md')}`,
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body)).toEqual({ id: 'doc-123', title: 'Note', kind: 'MARKDOWN' })
+      expect(mockDocumentService.getDocumentByPath).toHaveBeenCalledWith('folder/note.md')
+      expect(mockAssertFolderPermission).toHaveBeenCalledWith('user-123', 'VIEWER', 'folder-1', 'VIEW')
+    })
+
+    it('returns 404 when no document has the path', async () => {
+      mockDocumentService.getDocumentByPath.mockResolvedValue(null)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/by-path?path=folder%2Fmissing.md',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(404)
+      expect(JSON.parse(response.body).error.code).toBe('DOCUMENT_NOT_FOUND')
+    })
+
+    it('rejects missing or empty path', async () => {
+      for (const url of ['/api/documents/by-path', '/api/documents/by-path?path=']) {
+        const response = await app.inject({
+          method: 'GET',
+          url,
+          headers: { authorization: 'Bearer test-token' },
+        })
+        expect(response.statusCode).toBe(400)
+        expect(JSON.parse(response.body).error.code).toBe('BAD_REQUEST')
+      }
+      expect(mockDocumentService.getDocumentByPath).not.toHaveBeenCalled()
+    })
+
+    it('returns 403 when folder access is denied', async () => {
+      mockDocumentService.getDocumentByPath.mockResolvedValue({
+        id: 'doc-123',
+        title: 'Note',
+        kind: 'MARKDOWN',
+        folderId: 'folder-1',
+      })
+      mockAssertFolderPermission.mockRejectedValueOnce(
+        Object.assign(new Error('Insufficient folder permission'), { statusCode: 403 }),
+      )
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/documents/by-path?path=folder%2Fsecret.md',
+        headers: { authorization: 'Bearer test-token' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(JSON.parse(response.body).error.code).toBe('FORBIDDEN')
     })
   })
 

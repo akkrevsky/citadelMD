@@ -329,6 +329,28 @@ describe('DocumentService', () => {
     })
   })
 
+  describe('getDocumentByPath', () => {
+    it('resolves a document by its file path', async () => {
+      const created = await documentService.createDocument({
+        folderId: testFolderId,
+        title: 'Path Test',
+        createdById: testUserId
+      })
+
+      const resolved = await documentService.getDocumentByPath(created.filePath)
+      expect(resolved).toMatchObject({
+        id: created.id,
+        title: 'Path Test',
+        kind: 'MARKDOWN',
+        folderId: testFolderId,
+      })
+    })
+
+    it('returns null for unknown paths', async () => {
+      expect(await documentService.getDocumentByPath('nope/unknown.md')).toBeNull()
+    })
+  })
+
   describe('getDocumentContent', () => {
     it('should return document content from working tree', async () => {
       const created = await documentService.createDocument({

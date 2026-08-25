@@ -207,6 +207,14 @@ export class DocumentService {
   /**
    * Commit working tree changes with Redis locking
    */
+  /** Resolve a document by its git path (folder/name.md). Null when no document has this path. */
+  async getDocumentByPath(filePath: string) {
+    return prisma.document.findUnique({
+      where: { filePath },
+      select: { id: true, title: true, kind: true, folderId: true },
+    })
+  }
+
   async commitChanges(id: string, message: string, userId: string): Promise<void> {
     const document = await prisma.document.findUnique({
       where: { id },
