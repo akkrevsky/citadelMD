@@ -140,6 +140,8 @@ services:
     build:
       context: ../
       dockerfile: apps/mcp-server/Dockerfile
+    ports:
+      - "3100:3100"
     restart: unless-stopped
     depends_on:
       postgres:
