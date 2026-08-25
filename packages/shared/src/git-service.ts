@@ -188,6 +188,12 @@ export class GitService {
     return raw.split('\n').filter((line) => line.length > 0)
   }
 
+  /** Whether the working tree has any modified or untracked files */
+  async hasAnyChanges(): Promise<boolean> {
+    const status = await this.git.status()
+    return status.files.length > 0
+  }
+
   async remove(filePath: string): Promise<void> {
     await this.git.rm([filePath, '-r'])
   }
