@@ -29,6 +29,7 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   folders           Folder[]
+  ownedFolders      Folder[]  @relation("FolderOwner")
   documents         Document[]
   folderPermissions FolderPermission[]
   shares            Share[]
@@ -56,11 +57,17 @@ model Folder {
   createdAt   DateTime   @default(now()) @map("created_at")
   createdById String?    @map("created_by") @db.Uuid
   createdBy   User?      @relation(fields: [createdById], references: [id])
+  // Personal root ownership: the user's personal root has ownerId set
+  // (at most one per user, enforced by the unique index); everything else
+  // is NULL. Ownership implies ADMIN over the whole subtree.
+  ownerId     String?    @map("owner_id") @db.Uuid
+  owner       User?      @relation("FolderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   documents   Document[]
   permissions FolderPermission[]
 
   @@unique([parentId, name])
+  @@unique([ownerId])
   @@index([parentId])
   @@map("folders")
 }

@@ -24,6 +24,7 @@ export interface Folder {
   gitPath: string
   createdAt: Date
   createdById: string | null
+  ownerId: string | null
 }
 
 export type DocumentKind = 'MARKDOWN' | 'EXCALIDRAW'
