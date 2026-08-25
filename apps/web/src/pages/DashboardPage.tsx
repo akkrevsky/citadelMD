@@ -12,6 +12,7 @@ import {
 import { TabsProvider, useTabs } from '../contexts/TabsContext'
 import { useTheme } from '../hooks/useTheme'
 import { FolderSettingsDialog } from '../components/FolderSettingsDialog'
+import { ShareFolderDialog } from '../components/ShareFolderDialog'
 import { AssetsPanel } from '../components/AssetsPanel'
 import { TabContextMenu } from '../components/TabContextMenu'
 import { MoveDocumentDialog } from '../components/MoveDocumentDialog'
@@ -121,6 +122,7 @@ function DashboardWithTabs() {
     title: string
     kind: 'folder' | 'document'
   } | null>(null)
+  const [shareFolder, setShareFolder] = useState<{ id: string; name: string; ownerId?: string | null } | null>(null)
   const dragDocRef = useRef<{ id: string; currentFolderId: string | null } | null>(null)
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
 
@@ -309,36 +311,45 @@ function DashboardWithTabs() {
 
   function buildMenuItems(item: TreeItem): TreeMenuItem[] {
     if (item.type === 'folder') {
-      const isRoot = item.folderGitPath === ''
+      const isPersonalRoot = item.parentId === null && item.ownerId != null
+      const canEdit = item.permission === 'EDIT' || item.permission === 'ADMIN'
+      const canAdmin = item.permission === 'ADMIN'
+
       const items: TreeMenuItem[] = [
         { label: 'New note', onSelect: () => startCreate('note', item.id) },
         { label: 'New diagram', onSelect: () => startCreate('diagram', item.id) },
         { label: 'New subfolder', onSelect: () => startCreate('folder', item.id) },
       ]
-      if (!isRoot) {
+
+      // Personal roots cannot be renamed or deleted (server enforces 403 too)
+      if (canEdit && !isPersonalRoot) {
         items.push(
           { separator: true },
           { label: 'Rename', onSelect: () => setRenaming({ id: item.id, name: item.name }) },
-          {
-            label: 'Settings',
-            onSelect: () =>
-              setFolderSettings({ id: item.id, name: item.name, mode: item.folderMode ?? 'GIT' }),
-          },
-          {
-            label: 'Delete',
-            danger: true,
-            onSelect: () => setDeleteTarget({ id: item.id, title: item.name, kind: 'folder' }),
-          },
         )
-      } else {
+      }
+      if (canAdmin) {
         items.push(
-          { separator: true },
           {
             label: 'Settings',
             onSelect: () =>
               setFolderSettings({ id: item.id, name: item.name, mode: item.folderMode ?? 'GIT' }),
           },
+          {
+            label: 'Share…',
+            onSelect: () => setShareFolder({ id: item.id, name: item.name, ownerId: item.ownerId }),
+          },
         )
+      }
+      if (canAdmin && !isPersonalRoot) {
+        items.push({
+          label: 'Delete',
+          danger: true,
+          onSelect: () => setDeleteTarget({ id: item.id, title: item.name, kind: 'folder' }),
+        })
+      }
+      if (items.length > 3) {
+        items.splice(3, 0, { separator: true })
       }
       return items
     }
@@ -599,20 +610,22 @@ function DashboardWithTabs() {
               ) : (
                 <span className="tree-row-label">{item.name}</span>
               )}
-              <button
-                className="tree-item-action"
-                title="Folder settings"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setFolderSettings({
-                    id: item.id,
-                    name: item.name,
-                    mode: item.folderMode ?? 'GIT',
-                  })
-                }}
-              >
-                ⚙
-              </button>
+              {item.permission === 'ADMIN' && (
+                <button
+                  className="tree-item-action"
+                  title="Folder settings"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setFolderSettings({
+                      id: item.id,
+                      name: item.name,
+                      mode: item.folderMode ?? 'GIT',
+                    })
+                  }}
+                >
+                  ⚙
+                </button>
+              )}
             </div>
             {isOpen && item.children ? renderTree(item.children, depth + 1, folderPath) : null}
           </div>
@@ -866,6 +879,19 @@ function DashboardWithTabs() {
             setFolderSettings(null)
             refreshTree()
             void mode
+          }}
+        />
+      )}
+
+      {shareFolder && (
+        <ShareFolderDialog
+          folderId={shareFolder.id}
+          folderName={shareFolder.name}
+          ownerId={shareFolder.ownerId}
+          onClose={() => setShareFolder(null)}
+          onSaved={() => {
+            setShareFolder(null)
+            refreshTree()
           }}
         />
       )}

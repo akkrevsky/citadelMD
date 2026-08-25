@@ -273,6 +273,42 @@ describe('api-client', () => {
     })
   })
 
+  describe('getFolderPermissions', () => {
+    it('sends GET and unwraps the permissions array', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            permissions: [{ userId: 'u2', login: 'alice', permission: 'VIEW' }],
+          }),
+      })
+
+      const result = await api.getFolderPermissions('f1')
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/folders/f1/permissions')
+      expect(options.method ?? 'GET').toBe('GET')
+      expect(result).toEqual([{ userId: 'u2', login: 'alice', permission: 'VIEW' }])
+    })
+  })
+
+  describe('setFolderPermissions', () => {
+    it('sends PUT with the permissions array', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ permissions: [] }),
+      })
+
+      await api.setFolderPermissions('f1', [{ userId: 'u2', permission: 'EDIT' }])
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toContain('/api/folders/f1/permissions')
+      expect(options.method).toBe('PUT')
+      expect(JSON.parse(options.body)).toEqual({
+        permissions: [{ userId: 'u2', permission: 'EDIT' }],
+      })
+    })
+  })
+
   describe('changePassword', () => {
     it('sends PATCH with both passwords', async () => {
       mockFetch.mockResolvedValueOnce({

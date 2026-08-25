@@ -13,6 +13,12 @@ export interface CurrentUser {
   gitEmail: string | null
 }
 
+export interface FolderPermissionEntry {
+  userId: string
+  login: string
+  permission: 'VIEW' | 'EDIT' | 'ADMIN'
+}
+
 export interface UserRecord {
   id: string
   login: string
@@ -36,8 +42,12 @@ export interface TreeItem {
   folderMode?: 'GIT' | 'SNAPSHOT'
   /** Folders: own parent id (null for top-level); documents: their parent folder id */
   parentId?: string | null
-  /** Folders only: git path ('' for the Root folder) */
+  /** Folders only: git path ('' for the legacy Root folder) */
   folderGitPath?: string
+  /** Folders only: effective permission of the current user (VIEW/EDIT/ADMIN) */
+  permission?: string
+  /** Folders only: owner user id (set on personal roots) */
+  ownerId?: string | null
   children?: TreeItem[]
 }
 
@@ -48,6 +58,7 @@ export interface FolderNode {
   parentId: string | null
   gitPath: string
   permission: string
+  ownerId?: string | null
   children: FolderNode[]
   documents: Document[]
 }
@@ -101,6 +112,8 @@ function flattenTree(folders: FolderNode[]): TreeItem[] {
       folderMode: folder.mode ?? 'GIT',
       parentId: folder.parentId,
       folderGitPath: folder.gitPath,
+      permission: folder.permission,
+      ownerId: folder.ownerId ?? null,
       children,
     })
   }
@@ -362,6 +375,25 @@ class ApiClient {
         body: JSON.stringify(data),
       },
     )
+  }
+
+  getFolderPermissions(folderId: string) {
+    return this.request<{ permissions: FolderPermissionEntry[] }>(
+      `/folders/${folderId}/permissions`,
+    ).then((r) => r.permissions ?? [])
+  }
+
+  setFolderPermissions(
+    folderId: string,
+    permissions: { userId: string; permission: 'VIEW' | 'EDIT' | 'ADMIN' }[],
+  ) {
+    return this.request<{ permissions: FolderPermissionEntry[] }>(
+      `/folders/${folderId}/permissions`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ permissions }),
+      },
+    ).then((r) => r.permissions ?? [])
   }
 
   listUploads(documentId?: string) {
