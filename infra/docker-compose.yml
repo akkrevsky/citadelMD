@@ -147,6 +147,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      BACKEND_URL: http://backend:3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-mdcollab}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mdcollab}
       REDIS_URL: redis://redis:6379
       GIT_REPO_PATH: /data/docs
