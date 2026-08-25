@@ -77,11 +77,16 @@ model Folder {
   createdAt   DateTime  @default(now()) @map("created_at")
   createdById String?   @map("created_by") @db.Uuid
   createdBy   User?     @relation(fields: [createdById], references: [id])
+  // Личная корневая папка пользователя (users/<login>); у остальных NULL.
+  // Владение даёт подразумеваемый ADMIN над всем поддеревом.
+  ownerId     String?   @map("owner_id") @db.Uuid
+  owner       User?     @relation("FolderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   documents   Document[]
   permissions FolderPermission[]
 
   @@unique([parentId, name])
+  @@unique([ownerId])
   @@index([parentId])
   @@map("folders")
 }
