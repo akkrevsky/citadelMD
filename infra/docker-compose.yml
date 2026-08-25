@@ -175,6 +175,9 @@ services:
     # An external nginx on the host network terminates TLS and forwards here.
     ports:
       - "8081:80"
+      # AI agent gate (dsh) on the second nginx vhost — local-only, the
+      # remote nginx does not forward it (by design for now)
+      - "8082:8082"
     networks: [internal]
 
   # AI agent (deepseek-harness). No auth of its own and therefore NO host
