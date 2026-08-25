@@ -5,6 +5,7 @@ import { BackendClient } from './backend-client.js'
 import { registerTools } from './tools.js'
 import { registerResources } from './resources.js'
 import { resolveApiKey } from './auth.js'
+import { buildDescription } from './describe.js'
 
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000'
 
@@ -30,6 +31,17 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Health check (no auth required)
   app.get('/health', async () => {
     return { status: 'ok', service: 'mcp-server' }
+  })
+
+  // Self-describing page (no auth required): an agent pointed here can learn
+  // how to connect to /mcp on its own. Host/proto come from the request, so
+  // the connect snippets always match the public URL.
+  app.get('/mcp/description', async (request) => {
+    const forwardedProto = (request.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]
+    const proto = forwardedProto ?? 'http'
+    const baseUrl = `${proto}://${request.headers.host}`
+    const server = buildMcpServer('') // apiKey is unused for introspection
+    return buildDescription(server, baseUrl)
   })
 
   // MCP Streamable HTTP — POST (messages)
