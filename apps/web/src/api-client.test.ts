@@ -485,4 +485,32 @@ describe('api-client', () => {
     })
   })
 
+  describe('resolveDocumentPath', () => {
+    it('encodes the path into the by-path query', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'doc-1', title: 'Note', kind: 'MARKDOWN' }),
+      })
+
+      const result = await api.resolveDocumentPath('folder/note.md')
+      expect(mockFetch.mock.calls[0][0]).toContain(
+        `/api/documents/by-path?path=${encodeURIComponent('folder/note.md')}`,
+      )
+      expect(result.id).toBe('doc-1')
+    })
+
+    it('throws the server message on 404', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' } }),
+      })
+
+      await expect(api.resolveDocumentPath('folder/missing.md')).rejects.toThrow(
+        'Document not found',
+      )
+    })
+  })
+
 })

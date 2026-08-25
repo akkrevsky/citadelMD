@@ -110,3 +110,17 @@ describe('renderMarkdown — task lists', () => {
     expect(html).not.toContain('onclick')
   })
 })
+
+describe('renderMarkdown — document links', () => {
+  it('keeps the doc-link class through sanitization', () => {
+    const html = renderMarkdown('[Note](folder/note.md)')
+    expect(html).toContain('class="doc-link"')
+    expect(html).toContain('href="folder/note.md"')
+  })
+
+  it('strips javascript: hrefs', () => {
+    const html = renderMarkdown('[X](javascript:alert(1))')
+    expect(html).not.toContain('href="javascript:')
+    expect(html).not.toContain('doc-link')
+  })
+})

@@ -280,6 +280,12 @@ class ApiClient {
     })
   }
 
+  resolveDocumentPath(path: string) {
+    return this.request<{ id: string; title: string; kind?: 'MARKDOWN' | 'EXCALIDRAW' }>(
+      `/documents/by-path?path=${encodeURIComponent(path)}`,
+    )
+  }
+
   getDiff(id: string) {
     return this.request<{ diff: string }>(`/documents/${id}/diff`)
   }

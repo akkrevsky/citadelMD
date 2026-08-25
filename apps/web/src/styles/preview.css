@@ -63,6 +63,10 @@
   font-family: var(--font-mono);
 }
 
+.markdown-preview a.doc-link {
+  text-decoration: underline dotted;
+}
+
 .markdown-preview pre {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

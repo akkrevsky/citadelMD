@@ -12,7 +12,6 @@ import { IconSave, IconCommit, IconDiscard, IconShare, IconHistory, IconDashboar
 import { RevisionTree } from '../components/RevisionTree.js'
 import { ExcalidrawEditPage } from './ExcalidrawEditPage.js'
 import { useFileUpload } from '../hooks/useFileUpload.js'
-import { useTheme } from '../hooks/useTheme'
 import { api, type Document } from '../api-client.js'
 import { useTabs } from '../contexts/TabsContext.js'
 import { setUnsavedChanges, clearUnsavedChanges, setUncommittedChanges, clearUncommittedChanges } from '../utils/unsaved.js'
@@ -33,7 +32,6 @@ export function DocumentEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { theme, toggleTheme } = useTheme()
   const { openPreview, pinTab, setActive, updateTabTitle } = useTabs()
   const [doc, setDoc] = useState<Document | null>(null)
   const [content, setContent] = useState('')
@@ -534,8 +532,6 @@ export function DocumentEditPage() {
           onFormat={handleFormat}
           wordWrap={wordWrap}
           onToggleWrap={toggleWordWrap}
-          theme={theme}
-          onToggleTheme={toggleTheme}
           showHistory={showHistory}
           onToggleHistory={() => {
             setShowHistory((v) => {
@@ -626,7 +622,12 @@ export function DocumentEditPage() {
             }}
           >
             <div className="preview-wrapper">
-              <MarkdownPreview content={previewContent || content} scrollRatio={scrollRatio} />
+              <MarkdownPreview
+                content={previewContent || content}
+                scrollRatio={scrollRatio}
+                currentFilePath={doc.filePath}
+                onLinkError={(msg) => createToast(setToasts, msg, 'error')}
+              />
             </div>
           </div>
         </div>

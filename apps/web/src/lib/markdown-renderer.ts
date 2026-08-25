@@ -10,6 +10,7 @@ import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-markdown'
 import taskLists from 'markdown-it-task-lists'
 import { excalidrawBlockPlugin } from './excalidraw-plugin.js'
+import { docLinkPlugin } from './doc-link-plugin.js'
 import 'katex/dist/katex.min.css'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
@@ -58,6 +59,7 @@ export function getMarkdownIt(): MarkdownIt {
   // (editing happens in the source pane).
   md.use(taskLists, { enabled: false, label: true, labelAfter: true })
   md.use(excalidrawBlockPlugin)
+  md.use(docLinkPlugin)
   return md
 }
 
