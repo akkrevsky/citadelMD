@@ -195,7 +195,9 @@ services:
     environment:
       DSH_HOME: /data/dsh
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}
+      # Empty string would override the plugin's public-API fallback with a
+      # blank base — always default to the public endpoint.
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       DSH_MODEL: ${DSH_MODEL:-deepseek-v4-pro}
       DSH_MCP_TOKEN: ${DSH_MCP_TOKEN:-}
     volumes:

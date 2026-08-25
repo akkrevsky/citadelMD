@@ -26,4 +26,5 @@
         transport: streamable-http
         url: http://mcp-server:3100/mcp
         headers:
-          Authorization: !!js 'Bearer ' + process.env.DSH_MCP_TOKEN
+          Authorization: !!js >-
+            'Bearer ' + process.env.DSH_MCP_TOKEN

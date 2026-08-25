@@ -11,4 +11,7 @@ if [ ! -f "$DSH_HOME/cordis.patch.yml" ]; then
   echo "[dsh] home seeded: $DSH_HOME/cordis.patch.yml, AGENTS.md"
 fi
 
-exec npx dsh web --no-open
+# The HMR service needs Node internals; the pnpm layout does not hoist the
+# node-addon-require-builtin fallback, so launch the bin directly with the
+# flag the HMR plugin expects.
+exec node --expose-internals /app/node_modules/@deepseek-ai/dsh/lib/bin.js web --no-open
