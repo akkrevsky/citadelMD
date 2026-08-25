@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { authMiddleware, requireRole } from '../middleware/auth.js'
+import { authMiddleware } from '../middleware/auth.js'
 import {
   createFolder,
   renameFolder,
@@ -9,7 +9,9 @@ import {
   setFolderPermissions,
   getEffectivePermission,
   updateFolderSettings,
+  ensurePersonalFolder,
 } from '../services/folder.service.js'
+import { assertFolderPermission } from '../services/authz.js'
 
 export async function folderRoutes(app: FastifyInstance): Promise<void> {
   // All folder routes require authentication
@@ -54,8 +56,19 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
+      // Without an explicit parent the folder lands in the user's own
+      // personal root. Non-admins may only create inside folders they can
+      // edit (own subtree or shared folders with EDIT/ADMIN).
+      let resolvedParentId = parentId ?? null
+      if (!parentId) {
+        const root = await ensurePersonalFolder(request.user!.sub)
+        resolvedParentId = root.id
+      } else if (request.user!.role !== 'ADMIN') {
+        await assertFolderPermission(request.user!.sub, request.user!.role, parentId, 'EDIT')
+      }
+
       const folder = await createFolder({
-        parentId: parentId ?? null,
+        parentId: resolvedParentId,
         name: name.trim(),
         createdById: request.user!.sub,
       })
@@ -88,6 +101,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
+      await assertFolderPermission(request.user!.sub, request.user!.role, id, 'EDIT')
       const folder = await renameFolder(id, { name: name.trim() }, request.user!.sub)
       return reply.status(200).send(folder)
     } catch (err: unknown) {
@@ -105,6 +119,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string }
 
     try {
+      await assertFolderPermission(request.user!.sub, request.user!.role, id, 'ADMIN')
       await deleteFolder(id, request.user!.sub)
       return reply.status(204).send()
     } catch (err: unknown) {
@@ -128,6 +143,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
+      await assertFolderPermission(request.user!.sub, request.user!.role, id, 'ADMIN')
       const folder = await updateFolderSettings(id, { mode })
       return reply.status(200).send(folder)
     } catch (err: unknown) {
@@ -146,6 +162,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string }
 
     try {
+      await assertFolderPermission(request.user!.sub, request.user!.role, id, 'ADMIN')
       const permissions = await getFolderPermissions(id)
       return reply.status(200).send({ permissions })
     } catch (err: unknown) {
@@ -189,6 +206,7 @@ export async function folderRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
+      await assertFolderPermission(request.user!.sub, request.user!.role, id, 'ADMIN')
       const result = await setFolderPermissions(
         id,
         permissions.map((p) => ({
