@@ -30,7 +30,7 @@ rebuild:
 redeploy:
 	docker compose -f docker-compose.yml build
 	docker compose -f docker-compose.yml up -d --force-recreate --no-deps --remove-orphans \
-		backend web yjs-server mcp-server
+		backend web yjs-server mcp-server dsh
 	@echo "Waiting for services to become healthy..."
 	@for i in $$(seq 1 60); do \
 	  bad=$$(docker compose -f docker-compose.yml ps --format '{{.Health}}' | grep -E 'unhealthy|starting' || true); \

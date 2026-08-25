@@ -5,6 +5,7 @@ volumes:
   pg_data:
   minio_data:
   redis_data:
+  dsh_data:
 
 services:
   postgres:
@@ -174,4 +175,32 @@ services:
     # An external nginx on the host network terminates TLS and forwards here.
     ports:
       - "8081:80"
+    networks: [internal]
+
+  # AI agent (deepseek-harness). No auth of its own and therefore NO host
+  # ports: the only gate is the web nginx auth_request vhost (port 8082,
+  # local-only). The docs git repo is deliberately not mounted — the agent's
+  # tools are sandboxed to this container and reach citadelMD via MCP.
+  dsh:
+    build:
+      context: ./dsh
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    environment:
+      DSH_HOME: /data/dsh
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}
+      DSH_MODEL: ${DSH_MODEL:-deepseek-v4-pro}
+      DSH_MCP_TOKEN: ${DSH_MCP_TOKEN:-}
+    volumes:
+      - dsh_data:/data/dsh
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3080/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     networks: [internal]

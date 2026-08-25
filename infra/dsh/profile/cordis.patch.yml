@@ -1,0 +1,29 @@
+# Home-level patch ($DSH_HOME/cordis.patch.yml): applied on top of the
+# auto-initialized `web` profile (dsh-base + dsh-web-app bundles).
+# Patch rows replace the targeted row's whole config; insert adds plugins.
+# Secrets are resolved from container env (infra/.env -> compose), never here.
+
+- id: agent-default-model
+  config:
+    provider: deepseek-official
+    model: !!js process.env.DSH_MODEL || 'deepseek-v4-pro'
+
+- id: llm-deepseek
+  config:
+    apiKeyEnv: DEEPSEEK_API_KEY
+    # baseURL not set: falls back to $DEEPSEEK_BASE_URL, then the public API.
+
+- id: webserver
+  config:
+    host: 0.0.0.0
+    port: 3080
+
+- insert:
+    - id: citadelmd-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: citadelmd
+        transport: streamable-http
+        url: http://mcp-server:3100/mcp
+        headers:
+          Authorization: !!js 'Bearer ' + process.env.DSH_MCP_TOKEN
