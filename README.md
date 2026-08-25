@@ -17,6 +17,7 @@ Content lives as plain `.md` files in a Git working repo. Edits sync in real tim
 - **Roles & permissions** — ADMIN / EDITOR / VIEWER with folder hierarchy and inherited permissions
 - **Public share links** — time-limited, read or read/write, guest sees a single document only
 - **MCP server** — lets AI agents read, search, create, and update documents over an API key
+- **AI agent** — deepseek-harness agent embedded in the dashboard (reads/writes notes via MCP, isolated sandbox; local access only, see [docs/08-dsh-agent.md](docs/08-dsh-agent.md))
 
 ## Tech stack
 
