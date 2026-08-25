@@ -1747,6 +1747,36 @@ select:focus {
   gap: 0.5rem;
 }
 
+/* Agent / chat view toggle */
+.home-view-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.agent-frame-wrap {
+  width: 100%;
+  max-width: 1080px;
+}
+
+.agent-frame {
+  width: 100%;
+  height: min(72vh, 760px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+
+.chat-panel {
+  width: 100%;
+  max-width: 720px;
+}
+
+/* CSS display rules would override the hidden attribute — enforce it. */
+.agent-frame-wrap[hidden],
+.chat-panel[hidden] {
+  display: none;
+}
+
 /* AI chat bar (OpenViking-style bubbles) */
 .ai-chat-bar {
   width: 100%;
