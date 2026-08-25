@@ -1,4 +1,5 @@
 .PHONY: install dev up build rebuild redeploy down logs ps migrate seed backup \
+	agent-key agent-logs \
 	debug-up debug-down debug-stop debug-ps debug-logs debug-migrate debug-seed debug-setup \
 	debug-dev debug
 
@@ -60,6 +61,13 @@ seed:
 backup:
 	./backup/pg-backup.sh
 	./backup/git-mirror.sh
+
+# Create (or refresh) the harness service user and write its apiKey to .env.
+agent-key:
+	./scripts/provision-agent.sh
+
+agent-logs:
+	docker compose -f docker-compose.yml logs -f --tail=100 dsh
 
 debug-up:
 	@mkdir -p "$$(grep '^GIT_REPO_HOST_PATH=' .env_debug | cut -d= -f2-)"
