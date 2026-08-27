@@ -11,6 +11,7 @@ import 'prismjs/components/prism-markdown'
 import taskLists from 'markdown-it-task-lists'
 import { excalidrawBlockPlugin } from './excalidraw-plugin.js'
 import { docLinkPlugin } from './doc-link-plugin.js'
+import { mermaidBlockPlugin } from './mermaid-plugin.js'
 import 'katex/dist/katex.min.css'
 
 const PURIFY_CONFIG: DOMPurifyConfig = {
@@ -60,6 +61,7 @@ export function getMarkdownIt(): MarkdownIt {
   md.use(taskLists, { enabled: false, label: true, labelAfter: true })
   md.use(excalidrawBlockPlugin)
   md.use(docLinkPlugin)
+  md.use(mermaidBlockPlugin)
   return md
 }
 

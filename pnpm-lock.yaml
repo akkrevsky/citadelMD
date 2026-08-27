@@ -142,6 +142,9 @@ importers:
       markdown-it-texmath:
         specifier: ^1.0.0
         version: 1.0.0
+      mermaid:
+        specifier: ^11.16.0
+        version: 11.16.0
       prismjs:
         specifier: ^1.30.0
         version: 1.30.0

@@ -80,6 +80,12 @@ describe('renderMarkdown — regression', () => {
     const html = renderMarkdown('<b onclick="x()">bold</b>')
     expect(html).not.toContain('<b')
   })
+
+  it('renders mermaid fences as .mermaid divs through the full pipeline', () => {
+    const html = renderMarkdown('```mermaid\ngraph TD\nA-->B\n```')
+    expect(html).toContain('<div class="mermaid">graph TD\nA--&gt;B\n</div>')
+    expect(html).not.toContain('<svg')
+  })
 })
 
 describe('renderMarkdown — task lists', () => {

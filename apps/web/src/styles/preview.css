@@ -259,6 +259,36 @@
   font-style: italic;
 }
 
+.markdown-preview .mermaid {
+  margin: 1em 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  overflow-x: auto;
+}
+
+.markdown-preview .mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-preview .mermaid-error {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.markdown-preview .mermaid-error-title {
+  font-weight: 600;
+}
+
+.markdown-preview .mermaid-error pre {
+  margin: 0.5em 0 0;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
 .preview-wrapper {
   flex: 1;
   min-height: 0;
