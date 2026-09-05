@@ -11,6 +11,41 @@ export class BackendClient {
     private baseUrl: string = DEFAULT_BACKEND_URL,
   ) {}
 
+  private async patch(path: string, body?: unknown): Promise<any> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `ApiKey ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } }
+      throw Object.assign(new Error(err.error?.message ?? `Backend ${res.status}`), {
+        statusCode: res.status,
+        code: err.error?.code ?? 'BACKEND_ERROR',
+      })
+    }
+    return res.json()
+  }
+
+  private async del(path: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'DELETE',
+      headers: { Authorization: `ApiKey ${this.apiKey}` },
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } }
+      throw Object.assign(new Error(err.error?.message ?? `Backend ${res.status}`), {
+        statusCode: res.status,
+        code: err.error?.code ?? 'BACKEND_ERROR',
+      })
+    }
+    // DELETE returns 204 with no body
+    return res.status === 204 ? undefined : res.json()
+  }
+
   private async get(path: string): Promise<any> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       headers: { Authorization: `ApiKey ${this.apiKey}` },
@@ -71,7 +106,38 @@ export class BackendClient {
     return Array.isArray(data) ? data : (data?.tree ?? [])
   }
 
+  async createFolder(parentId: string | null, name: string) {
+    return this.post('/api/folders', { parentId, name })
+  }
+
+  async renameFolder(id: string, name: string) {
+    return this.patch(`/api/folders/${id}`, { name })
+  }
+
+  async deleteFolder(id: string) {
+    return this.del(`/api/folders/${id}`)
+  }
+
+  async updateFolderSettings(id: string, mode: 'GIT' | 'SNAPSHOT') {
+    return this.patch(`/api/folders/${id}/settings`, { mode })
+  }
+
+  async getFolderPermissions(id: string) {
+    return this.get(`/api/folders/${id}/permissions`)
+  }
+
+  async setFolderPermissions(
+    id: string,
+    permissions: { userId: string; permission: 'VIEW' | 'EDIT' | 'ADMIN' }[],
+  ) {
+    return this.put(`/api/folders/${id}/permissions`, { permissions })
+  }
+
   // ========== Documents ==========
+
+  async moveDocument(id: string, folderId: string) {
+    return this.post(`/api/documents/${id}/move`, { folderId })
+  }
 
   async createDocument(folderId: string, title: string) {
     return this.post(`/api/folders/${folderId}/documents`, { title })
