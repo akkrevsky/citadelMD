@@ -235,4 +235,141 @@ export function registerTools(server: McpServer, backend: BackendClient): void {
       }
     },
   )
+
+  // ---- create_folder ----
+  server.registerTool(
+    'create_folder',
+    {
+      description:
+        'Create a new folder. Without parentId it is created in your personal root. Requires EDIT permission on the parent folder.',
+      inputSchema: z.object({
+        parentId: z.string().uuid().optional().describe('Parent folder ID (omit for personal root)'),
+        name: z.string().min(1).max(200).describe('Folder name'),
+      }),
+    },
+    async ({ parentId, name }) => {
+      const folder = await backend.createFolder(parentId ?? null, name)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(folder, null, 2) }],
+      }
+    },
+  )
+
+  // ---- rename_folder ----
+  server.registerTool(
+    'rename_folder',
+    {
+      description:
+        'Rename a folder (git mv + commit). Personal root folders cannot be renamed. Requires EDIT permission.',
+      inputSchema: z.object({
+        id: z.string().uuid().describe('Folder ID'),
+        name: z.string().min(1).max(200).describe('New folder name'),
+      }),
+    },
+    async ({ id, name }) => {
+      const folder = await backend.renameFolder(id, name)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(folder, null, 2) }],
+      }
+    },
+  )
+
+  // ---- delete_folder ----
+  server.registerTool(
+    'delete_folder',
+    {
+      description:
+        'Delete a folder and all its contents recursively (git rm -r + commit). Personal root folders cannot be deleted. Requires ADMIN permission.',
+      inputSchema: z.object({
+        id: z.string().uuid().describe('Folder ID'),
+      }),
+    },
+    async ({ id }) => {
+      await backend.deleteFolder(id)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({ deleted: true }) }],
+      }
+    },
+  )
+
+  // ---- set_folder_mode ----
+  server.registerTool(
+    'set_folder_mode',
+    {
+      description:
+        'Change a folder versioning mode: GIT (every save is a git revision) or SNAPSHOT (git is never touched). Requires ADMIN permission.',
+      inputSchema: z.object({
+        id: z.string().uuid().describe('Folder ID'),
+        mode: z.enum(['GIT', 'SNAPSHOT']).describe('Versioning mode'),
+      }),
+    },
+    async ({ id, mode }) => {
+      const folder = await backend.updateFolderSettings(id, mode)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(folder, null, 2) }],
+      }
+    },
+  )
+
+  // ---- list_folder_permissions ----
+  server.registerTool(
+    'list_folder_permissions',
+    {
+      description: 'List explicit permissions on a folder. Requires ADMIN permission.',
+      inputSchema: z.object({
+        id: z.string().uuid().describe('Folder ID'),
+      }),
+    },
+    async ({ id }) => {
+      const result = await backend.getFolderPermissions(id)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      }
+    },
+  )
+
+  // ---- set_folder_permissions ----
+  server.registerTool(
+    'set_folder_permissions',
+    {
+      description:
+        'Replace the permission list on a folder (the new list is used as-is). Each entry needs a userId and one of VIEW, EDIT, ADMIN. Requires ADMIN permission.',
+      inputSchema: z.object({
+        id: z.string().uuid().describe('Folder ID'),
+        permissions: z
+          .array(
+            z.object({
+              userId: z.string().uuid().describe('User ID'),
+              permission: z.enum(['VIEW', 'EDIT', 'ADMIN']).describe('Permission level'),
+            }),
+          )
+          .describe('Full replacement permission list'),
+      }),
+    },
+    async ({ id, permissions }) => {
+      const result = await backend.setFolderPermissions(id, permissions)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      }
+    },
+  )
+
+  // ---- move_document ----
+  server.registerTool(
+    'move_document',
+    {
+      description:
+        'Move a document to another folder. Requires EDIT permission on both the source and target folders.',
+      inputSchema: z.object({
+        id: z.string().uuid().describe('Document ID'),
+        folderId: z.string().uuid().describe('Target folder ID'),
+      }),
+    },
+    async ({ id, folderId }) => {
+      const result = await backend.moveDocument(id, folderId)
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      }
+    },
+  )
 }

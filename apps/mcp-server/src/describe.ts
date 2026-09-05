@@ -38,6 +38,12 @@ function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   if (schema instanceof z.ZodBoolean) {
     return { type: 'boolean' }
   }
+  if (schema instanceof z.ZodEnum) {
+    return { type: 'string', enum: schema.options }
+  }
+  if (schema instanceof z.ZodArray) {
+    return { type: 'array', items: zodToJsonSchema(schema.element as z.ZodTypeAny) }
+  }
   return { type: 'unknown' }
 }
 
